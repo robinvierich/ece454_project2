@@ -168,7 +168,7 @@ class ListRequest(Message):
 
 class List(Message):
     def __init__(self, file_list):
-        super(List, self).__init__(MessageType.CONNECT_RESPONSE)
+        super(List, self).__init__(MessageType.LIST)
         self.file_list = file_list
         
 class ArchiveRequest(Message):

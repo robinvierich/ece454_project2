@@ -38,9 +38,11 @@ class Tracker(LocalPeer):
     HOSTNAME = "localhost"
     PORT = 12345
    
-    def __init__(self):
-        super(Tracker, self).__init__(hostname=Tracker.HOSTNAME, port=Tracker.PORT)
-    
+    def __init__(self, port = PORT):
+        # add all local files to the state data
+        # TODO
+        super(Tracker, self).__init__(hostname=Tracker.HOSTNAME, port=port)
+
     def handle_CONNECT_REQUEST(self, client_socket, msg):
         response = messages.ConnectResponse(successful=False)
         

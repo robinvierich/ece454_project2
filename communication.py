@@ -8,6 +8,7 @@ import threading
 import struct
 import Queue
 import cPickle as pickle
+import logging
 
 # Use a little-endian, unsigned long
 MSGLEN_STRUCT_FORMAT = "<L"
@@ -45,6 +46,7 @@ def recv_bytes(socket, byteCount):
         if data == '':
             raise RuntimeError("socket connection broken")
         msg = msg + data
+    logging.debug("Received bytes: " + msg)
     return msg
 
 def recv_message(peer=None, socket=None):
@@ -59,7 +61,7 @@ def recv_message(peer=None, socket=None):
       
     msg = ''
     msglen_header = recv_bytes(socket, 4)
-    
+
     if len(msglen_header) != 4:
         raise Exception("socket closed")
     

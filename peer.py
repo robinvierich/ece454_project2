@@ -5,12 +5,15 @@ Peer.py - Remote peer model
 import socket
 import threading
 import os.path
+import logging
 
 import communication
 from messages import MessageType
 import messages
 import checksum
 import filesystem
+import tracker
+from db import PeerDb, LocalPeerDb, TrackerDb
 
 class Peer(object):
     HOSTNAME = "localhost"
@@ -26,7 +29,14 @@ class LocalPeer(Peer):
         
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.start_server()
-        self._persisted_data = {}
+        if isinstance(self, tracker.Tracker):
+            self.db = TrackerDb()
+            # Go through the list of peers check which are still online and announce 
+            # that the tracker is now online, too
+            # TODO
+        else:
+            self.db = LocalPeerDb()
+            # Connect to the tracker
     
     def start_server(self):
         connected = False
@@ -56,6 +66,24 @@ class LocalPeer(Peer):
     def get_server_socket(self):
         return self._server_socket
     
+    def add_new_file(self, path):        
+        logging.debug("Adding a new file: " + path)
+        # TODO extract filename from path
+
+        # add file info to the database
+        isDir = 1 if os.path.isdir(path) else 0
+        size = os.path.getsize(path)
+        cs = checksum.calc_file_checksum(path)
+        self.db.add_file(path, isDir, size, cs, 0)
+        
+        # I don't like to have tracker code in LocalPeer... Is there a better
+        # way to structure it? For now, just get it done...
+
+        # if it is a tracker, notify all peers
+        if isinstance(self, tracker.Tracker):
+            #TODO
+            pass
+
     #TODO: Probably makes more sense to make all these functions part of the peer class
     
     def get_handler_method_index(self):
@@ -163,15 +191,20 @@ class AcceptorThread(threading.Thread):
 
         self.alive = threading.Event()
         self.alive.set()
+        # terminate this thread when the main thread exits
+        threading.Thread.setDaemon(self, True)
 
-    def run(self):
+    def run(self):        
         server_socket = self._peer.get_server_socket()
         while self.alive.is_set():            
+            logging.debug("Waiting for a connection")
             client_socket, addr = server_socket.accept()
+            logging.debug("Received a new connection. Spawning a HandlerThread")
             handler = HandlerThread(self._peer, client_socket)
             handler.start()
     
     def join(self, timeout=None):
+        logging.debug("Ending thread")
         self.alive.clear()
         threading.Thread.join(self, timeout)
 
@@ -182,7 +215,9 @@ class HandlerThread(threading.Thread):
         self._client_socket = client_socket
     
     def run(self):
+        logging.debug("Spawned a HandlerThread")
         received_msg = communication.recv_message(socket=self._client_socket)
+
         msg_type = received_msg.msg_type
         
         handler_method_index = self._peer.get_handler_method_index()
@@ -191,5 +226,6 @@ class HandlerThread(threading.Thread):
         handler_method(self._client_socket, received_msg)
     
     def join(self, timeout=None):
+        logging.debug("Ending thread")
         threading.Thread.join(self, timeout)
 
