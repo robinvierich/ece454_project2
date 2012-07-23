@@ -35,14 +35,11 @@ class LocalPeer(Peer):
         self._acceptorThread = AcceptorThread(self)
         self.start_server()
         
-        if self.is_not_tracker():
+        if type(self) == LocalPeer: # exclude sub-classes
             self.db = LocalPeerDb()
             # Connect to the tracker
-            self.connect(LocalPeer.PASSWORD)
             self.tracker = Peer(tracker.Tracker.HOSTNAME, tracker.Tracker.PORT)
-
-    def is_not_tracker(self):
-        return not isinstance(self, tracker.Tracker)
+            self.connect(LocalPeer.PASSWORD)
     
     def start_server(self):        
         connected = False

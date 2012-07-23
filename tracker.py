@@ -59,8 +59,16 @@ class Tracker(LocalPeer):
         communication.send_message(response, socket=client_socket)
     
     @check_connected
-    def handle_DISCONNECT_REQUEST(self, client_socket, msg):
-        pass
+    def handle_DISCONNECT_REQUEST(self, client_socket, disconnect_request):
+        if not disconnect_request.check_for_unreplicated_files:
+            response = messages.DisconnectResponse(False)
+            communication.send_message(response, socket=client_socket)
+            return
+    
+        # TODO: check if there are unreplicated files on the node
+        unreplicated = False
+        response = messages.DisconnectResponse(unreplicated)
+        communication.send_message(response, socket=client_socket)
     
     @check_connected
     def handle_PEER_LIST_REQUEST(self, client_socket, msg):
