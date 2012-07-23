@@ -6,7 +6,7 @@ import socket
 import communication
 import db
 from peer import LocalPeer
-
+import logging
 import messages
 
 # this will be in DB later
@@ -42,19 +42,20 @@ class Tracker(LocalPeer):
     def __init__(self, port=PORT):
         # add all local files to the state data
         # TODO
-        port_int = int(port)
-        super(Tracker, self).__init__(hostname=Tracker.HOSTNAME, port=port_int)
+        super(Tracker, self).__init__(hostname=Tracker.HOSTNAME, port=port)
         self.db = db.TrackerDb()
         self.start_accepting_connections()
 
     def handle_CONNECT_REQUEST(self, client_socket, msg):
+        logging.debug("Handling a connect request message")
         response = messages.ConnectResponse(successful=False)
         
-        if msg.pwd == "test":
+        if msg.pwd == LocalPeer.PASSWORD:
             response.successful = True
         
         peer_endpoint = client_socket.getpeername()
-        connected_peers[peer_endpoint] = None
+        port = client_socket.getsockaddress[1]
+        self.db.add_peer(peer_endpoint, port, PeerState.ONLINE, 
         
         communication.send_message(response, socket=client_socket)
     

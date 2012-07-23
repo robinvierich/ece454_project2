@@ -17,6 +17,11 @@ from db import PeerDb, LocalPeerDb, TrackerDb
 
 import pdb
 
+class PeerState(object):
+    ONLINE = 1
+    OFFLINE = 2
+    
+
 class Peer(object):
     HOSTNAME = "localhost"
     PORT = 11111
@@ -28,15 +33,13 @@ class Peer(object):
 class LocalPeer(Peer):  
     PASSWORD = '12345'
     def __init__(self, hostname=Peer.HOSTNAME, port=Peer.PORT):
-        super(LocalPeer, self).__init__(hostname, port)
-        
+        super(LocalPeer, self).__init__(hostname, port)        
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.start_server()
         if self.is_not_tracker():
-            self.db = LocalPeerDb()
-            # Connect to the tracker
-            self.connect(LocalPeer.PASSWORD)
             self.tracker = Peer(tracker.Tracker.HOSTNAME, tracker.Tracker.PORT)
+            self.db = LocalPeerDb()
+            self.connect(LocalPeer.PASSWORD)            
 
     def is_not_tracker(self):
         return not isinstance(self, tracker.Tracker)
@@ -50,6 +53,8 @@ class LocalPeer(Peer):
                 connected = True
                 logging.debug("Listening on port " + str(self.port))
             except:
+                logging.debug("Couldn't listen on port " + str(self.port) + 
+                              ". Trying " + str(self.port + 1))                              
                 self.port += 1
     
     def persist(self, (key, value)):
@@ -65,7 +70,10 @@ class LocalPeer(Peer):
         
         successful = response.successful
         if successful:
+            logging.debug("Connection to tracker successfull")
             self.start_accepting_connections()
+        else:
+            logging.debug("Connection to tracker unsuccessfull")
         
         return successful
 
@@ -282,6 +290,7 @@ class HandlerThread(threading.Thread):
         received_msg = communication.recv_message(socket=self._client_socket)
 
         msg_type = received_msg.msg_type
+        logging.debug("Received message of type " + str(msg_type))
         
         handler_method_index = self._peer.get_handler_method_index()
         
