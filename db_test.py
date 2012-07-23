@@ -14,10 +14,12 @@ def run():
     logging.basicConfig(level=logging.DEBUG, 
                         format="%(threadName)s %(filename)s %(funcName)s: %(message)s")
 
-    os.remove(TrackerDb.TRACKER_DB_FILE)
+    if os.path.exists(TrackerDb.DB_FILE):
+        os.remove(TrackerDb.DB_FILE)
     trackerDb = TrackerDb()
-
+    
     trackerDb.add_file("file1.txt", 1, 12345, "2l3kn4l23kn4", 1)    
+
     query = "SELECT count(*) FROM Files WHERE FileName='file1.txt'"
     trackerDb.cur.execute(query)
     res = trackerDb.cur.fetchone()

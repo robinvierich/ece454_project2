@@ -34,7 +34,7 @@ class Peer(object):
 class LocalPeer(Peer):  
     PASSWORD = '12345'
     MAX_FILE_SIZE = 100000000
-    MAX_FILE_SYS_SIZE = 10000000000
+    MAX_FILE_SYS_SIZE = 1000000000
     def __init__(self, hostname=Peer.HOSTNAME, port=Peer.PORT):
         super(LocalPeer, self).__init__(hostname, port)        
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -61,9 +61,8 @@ class LocalPeer(Peer):
                 self.port += 1
         
     def connect(self, password):
-        connect_request = messages.ConnectRequest(password, self.port, self.state,
-                                                  LocalPeer.MAX_FILE_SIZE, LocalPeer.MAX_FILE_SYS_SIZE,
-                                                  )
+        connect_request = messages.ConnectRequest(password, self.port, LocalPeer.MAX_FILE_SIZE,
+                                                  LocalPeer.MAX_FILE_SYS_SIZE, 0)
         # Send Connection Request to Tracker
         communication.send_message(connect_request, self.tracker)
         response = communication.recv_message(self.tracker)
