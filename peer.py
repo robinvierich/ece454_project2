@@ -113,6 +113,7 @@ class LocalPeer(Peer):
         
         raise Exception("download_file failed - max attempts reached")
     
+    
     # File Operations
     def read(self, file_path, start_offset=None, length=-1):
         file_data = filesystem.read_file(file_path)
@@ -145,8 +146,22 @@ class LocalPeer(Peer):
             communication.send_message(file_msg, peer)
         
     
-    def delete(self,file_path):
-        pass
+    def delete(self, file_path):
+        delete_request = messages.DeleteRequest(file_path)
+        communication.send_message(delete_request, self.tracker)
+        delete_response = communication.recv_message(self.tracker)
+        
+        if not delete_response.can_delete:
+            return False
+        
+        if (os.path.exists(file_path)):
+            os.remove(file_path)
+        
+        peer_list = self._get_peer_list(file_path)
+        
+        delete_msg = messages.Delete(file_path)
+        for peer in peer_list:
+            communication.send_message(delete_msg, peer)
     
     def move(self,src_path, dest_path):
         pass
@@ -264,14 +279,20 @@ class LocalPeer(Peer):
     
     def handle_VALIDATE_CHECKSUM_REQUEST(self, client_socket, msg):
         pass
+    
     def handle_VALIDATE_CHECKSUM_RESPONSE(self, client_socket, msg):
         pass
+    
     def handle_DELETE_REQUEST(self, client_socket, msg):
         pass
+    
     def handle_DELETE_RESPONSE(self, client_socket, msg):
         pass
+    
     def handle_DELETE(self, client_socket, msg):
-        pass
+        file_path = msg.file_path
+        filesystem.delete_file(file_path)
+    
     def handle_MOVE_REQUEST(self, client_socket, msg):
         pass
     def handle_MOVE_RESPONSE(self, client_socket, msg):

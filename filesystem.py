@@ -28,4 +28,9 @@ def read_file(file_path, start_offset=None, length=-1):
     f.close()
     return data
     
-        
+
+def delete_file(file_path):
+    if not os.path.exists(file_path):
+        return
+    
+    os.remove(file_path)
