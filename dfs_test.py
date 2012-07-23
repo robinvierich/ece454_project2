@@ -39,7 +39,6 @@ def run_tests():
     print "DFS Test"
     print "Starting Tracker"
     tracker = Tracker()
-    tracker.start_accepting_connections()
     
     dfs.init_local_peer(Tracker.HOSTNAME, Tracker.PORT)
     

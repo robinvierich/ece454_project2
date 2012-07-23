@@ -16,13 +16,27 @@ def write_file(file_path, file_data, start_offset=None):
         f.seek(start_offset)
         f.write(str(file_data))
 
-def read_file(file_path):
+def read_file(file_path, start_offset=None, length=-1):
     if not os.path.exists(file_path):
         return None
     
     f = open(file_path, "r")
-    data = "".join(f.readlines())
+    if start_offset:
+        f.seek(start_offset)
+    
+    data = f.read(length)
     f.close()
     return data
     
-        
+
+def delete_file(file_path):
+    if not os.path.exists(file_path):
+        return
+    
+    os.remove(file_path)
+
+def move(src_path, dest_path):
+    if not os.path.exists(src_path):
+        return
+    
+    os.renames(src_path, dest_path)

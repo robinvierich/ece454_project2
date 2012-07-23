@@ -18,12 +18,8 @@ peer_socket_index = {}
 
 def _create_peer_socket(topeer):
     peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-<<<<<<< Updated upstream
     peer_socket.connect((topeer.hostname, topeer.port))
-=======
     # TODO Handle refused connections
-    peer_socket.connect((peer.hostname, peer.port))
->>>>>>> Stashed changes
     return peer_socket 
 
 
