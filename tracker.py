@@ -4,6 +4,7 @@ tracker.py - global system tracker class
 
 import socket
 import communication
+import db
 from peer import LocalPeer
 
 import messages
@@ -41,7 +42,10 @@ class Tracker(LocalPeer):
     def __init__(self, port=PORT):
         # add all local files to the state data
         # TODO
-        super(Tracker, self).__init__(hostname=Tracker.HOSTNAME, port=port)
+        port_int = int(port)
+        super(Tracker, self).__init__(hostname=Tracker.HOSTNAME, port=port_int)
+        self.db = db.TrackerDb()
+        self.start_accepting_connections()
 
     def handle_CONNECT_REQUEST(self, client_socket, msg):
         response = messages.ConnectResponse(successful=False)

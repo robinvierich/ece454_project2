@@ -18,12 +18,13 @@ import sys
 import re
 import os.path
 
-local_peer = LocalPeer()
+local_peer = None
 
 def init_local_peer(tracker_hostname, tracker_port):
     global local_peer
     Tracker.HOSTNAME = tracker_hostname
     Tracker.PORT = tracker_port
+    local_peer = LocalPeer()
 
 def init_tracker(tracker_port):
     global local_peer
@@ -32,7 +33,7 @@ def init_tracker(tracker_port):
 # Connection
 def connect(password):
     return local_peer.connect(password)
-    
+
 
 def disconnect(check_for_unreplicated_files=True):
     return local_peer.disconnect(check_for_unreplicated_files)
@@ -61,8 +62,6 @@ def archive(file_path=None):
 
 
 def main():
-    localPeer = None
-
     parser = OptionParser()
     parser.add_option("-t", "--tracker", action="store_true", dest="tracker",
                       help="Start a tracker on this system.")
@@ -89,19 +88,14 @@ def main():
         if options.port is None:
             print "You must specify the tracker's port."
             sys.exit()
-        tracker = Tracker(int(options.port))
-        tracker.start_accepting_connections()
+        init_tracker(options.port)
     else:
         # initialize the local peer
         if options.port is None or options.ip is None:
             print "You must specify the IP and port of the tracker to connect to."
             sys.exit()
-        localPeer = LocalPeer()
-        Tracker.HOSTNAME = options.ip
-        Tracker.PORT = options.port
+        init_local_peer(options.ip, options.port)
     
-    #localPeer.start_accepting_connections()
-
     # Very simple cli
     while(True):
         inp = raw_input("> ")
