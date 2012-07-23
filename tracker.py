@@ -27,12 +27,8 @@ def check_connected(function):
             
         return_value = function(*args, **kwargs)
         return return_value
-            
         
     return wrapper
-
-
-
 
 class Tracker(LocalPeer):
     
@@ -50,7 +46,7 @@ class Tracker(LocalPeer):
     def handle_CONNECT_REQUEST(self, client_socket, msg):
         response = messages.ConnectResponse(successful=False)
         
-        if msg.pwd == "test":
+        if msg.pwd == "12345":
             response.successful = True
         
         #TODO: ensure getpeername() returns a unique identifier

@@ -24,17 +24,16 @@ def _create_peer_socket(topeer):
 
 def send_message(msg, topeer=None, socket=None):
     if socket == None:
-        socket = peer_socket_index.get(topeer)
+        socket = _create_peer_socket(topeer)
+        peer_socket_index[topeer] = socket
     
-        if socket == None:
-            socket = _create_peer_socket(topeer)
-            peer_socket_index[topeer] = socket
+        
     
     serial_msg = pickle.dumps(msg, protocol=pickle.HIGHEST_PROTOCOL)
     msglen_header = struct.pack(MSGLEN_STRUCT_FORMAT, len(serial_msg))
     
     try:
-        socket.sendall(msglen_header + serial_msg)
+        sent = socket.sendall(msglen_header + serial_msg)
     except IOError as e:
         raise RuntimeError("cannot send msg. " + str(e))
 

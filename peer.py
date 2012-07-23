@@ -71,13 +71,11 @@ class LocalPeer(Peer):
 
     def disconnect(self,check_for_unreplicated_files=True):
         communication.send_message(messages.DisconnectRequest(), self.tracker)
-        response = communication.recv_message(self.tracker) # blocks
+        response = communication.recv_message(self.tracker)
         
         while (response.should_wait):
-            #communication.send_message(messages.DisconnectRequest(), tracker)
-            response = communication.recv_message(self.tracker) # blocks    
-        
-        
+            response = communication.recv_message(self.tracker)
+
         self.stop()
     
     def _download_file(self, file_path, maxAttempts=3):
@@ -197,7 +195,6 @@ class LocalPeer(Peer):
         return archive_response.archived
     
     def start_accepting_connections(self):
-        
         self._acceptorThread.start()
     
     def stop(self):
@@ -321,6 +318,7 @@ class LocalPeer(Peer):
         pass
     def handle_MOVE_RESPONSE(self, client_socket, msg):
         pass
+    
     def handle_MOVE(self, client_socket, msg):
         src_path = msg.src_path
         dest_path = msg.dest_path
@@ -344,7 +342,7 @@ class AcceptorThread(threading.Thread):
         self.alive = threading.Event()
         self.alive.set()
         # terminate this thread when the main thread exits
-        threading.Thread.setDaemon(self, True)
+        self.daemon = True
 
     def run(self):        
         server_socket = self._peer.get_server_socket()
