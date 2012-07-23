@@ -114,12 +114,13 @@ class LocalPeer(Peer):
         raise Exception("download_file failed - max attempts reached")
     
     # File Operations
-    def read(self, file_path, start_offset=None, length=None):
+    def read(self, file_path, start_offset=None, length=-1):
         file_data = filesystem.read_file(file_path)
         if file_data != None:
             return file_data
         
-        file_data = self._download_file(file_path)
+        self._download_file(file_path)
+        file_data = filesystem.read_file(file_path, start_offset, length)
         
         return file_data
     
