@@ -40,8 +40,6 @@ class Tracker(LocalPeer):
     PORT = 12345
    
     def __init__(self, port=PORT):
-        # add all local files to the state data
-        # TODO
         super(Tracker, self).__init__(hostname=Tracker.HOSTNAME, port=port)
         self.db = db.TrackerDb()
         self.start_accepting_connections()
@@ -55,9 +53,8 @@ class Tracker(LocalPeer):
         
         peer_endpoint = client_socket.getpeername()
         port = client_socket.getsockaddress[1]
-        self.db.add_peer(peer_endpoint, port, PeerState.ONLINE, 
-        
-        communication.send_message(response, socket=client_socket)
+        self.db.add_peer(peer_endpoint, port, PeerState.ONLINE,         
+                         communication.send_message(response, socket=client_socket)
     
     @check_connected
     def handle_DISCONNECT_REQUEST(self, client_socket, disconnect_request):
