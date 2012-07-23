@@ -15,6 +15,8 @@ import filesystem
 import tracker
 from db import PeerDb, LocalPeerDb, TrackerDb
 
+import pdb
+
 class Peer(object):
     HOSTNAME = "localhost"
     PORT = 11111
@@ -23,28 +25,29 @@ class Peer(object):
         self.hostname = hostname
         self.port = port
 
-class LocalPeer(Peer):       
+class LocalPeer(Peer):  
+    PASSWORD = '12345'
     def __init__(self, hostname=Peer.HOSTNAME, port=Peer.PORT):
         super(LocalPeer, self).__init__(hostname, port)
         
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.start_server()
-        if isinstance(self, tracker.Tracker):
-            self.db = TrackerDb()
-            # Go through the list of peers check which are still online and announce 
-            # that the tracker is now online, too
-            # TODO
-        else:
+        if self.is_not_tracker():
             self.db = LocalPeerDb()
-            # Connect to the tracker
+            self.connect(LocalPeer.PASSWORD)
+            self.tracker = Peer(tracker.Tracker.HOSTNAME, tracker.Tracker.PORT)
+
+    def is_not_tracker(self):
+        return not isinstance(self, tracker.Tracker)
     
-    def start_server(self):
+    def start_server(self):        
         connected = False
         while not connected:
             try:
                 self._server_socket.bind((self.hostname, self.port))
                 self._server_socket.listen(5)
                 connected = True
+                logging.debug("Listening on port " + str(self.port))
             except:
                 self.port += 1
     
@@ -53,11 +56,11 @@ class LocalPeer(Peer):
         # we'll add sql here, just a standard dict for now
         self._persisted_data[key] = value
     
-    def connect(self,password):
+    def connect(self, password):
         connect_request = messages.ConnectRequest(password)
         # Send Connection Request to Tracker
-        communication.send_message(connect_request, tracker)
-        response = communication.recv_message(tracker)
+        communication.send_message(connect_request, self.tracker)
+        response = communication.recv_message(self.tracker)
         
         successful = response.successful
         if successful:
@@ -123,24 +126,18 @@ class LocalPeer(Peer):
     
     def get_server_socket(self):
         return self._server_socket
-    
-    def add_new_file(self, path):        
-        logging.debug("Adding a new file: " + path)
-        # TODO extract filename from path
 
-        # add file info to the database
+    def add_file_to_db(self, path):
+        logging.debug("Adding a new file to db: " + path)
+        # TODO extract filename from path
         isDir = 1 if os.path.isdir(path) else 0
         size = os.path.getsize(path)
         cs = checksum.calc_file_checksum(path)
         self.db.add_file(path, isDir, size, cs, 0)
-        
-        # I don't like to have tracker code in LocalPeer... Is there a better
-        # way to structure it? For now, just get it done...
-
-        # if it is a tracker, notify all peers
-        if isinstance(self, tracker.Tracker):
-            #TODO
-            pass
+    
+    def add_new_file(self, path):        
+        # TODO
+        pass
 
     #TODO: Probably makes more sense to make all these functions part of the peer class
     

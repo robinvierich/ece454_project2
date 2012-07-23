@@ -77,12 +77,12 @@ class PeerList(Message):
 
 class FileDownloadRequest(Message):
     def __init__(self, file_path):
-        super(PeerListRequest, self).__init__(MessageType.FILE_DOWNLOAD_REQUEST)
+        super(FileDownloadRequest, self).__init__(MessageType.FILE_DOWNLOAD_REQUEST)
         
 
 class FileDownloadDecline(Message):
     def __init__(self, file_path):
-        super(PeerListRequest, self).__init__(MessageType.FILE_DOWNLOAD_DECLINE)
+        super(FileDownloadDecline, self).__init__(MessageType.FILE_DOWNLOAD_DECLINE)
         
 
 class FileData(Message):

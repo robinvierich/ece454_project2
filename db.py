@@ -94,6 +94,19 @@ class TrackerDb(PeerDb):
                 self.cur.execute("CREATE TABLE PeerExcludedFiles(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                                  "PeerId INT, FileId INT, FileNamePattern TEXT)")
                 
+    def add_peer(self, ip, port, state, maxFileSize, maxChunkSize, currFileSysSize, name=""):
+        logging.debug("Adding a new entry in Peers table")
+        with self.connection:
+            query = ("INSERT INTO Peers " +
+                     "(Name, Ip, Port, State, MaxFileSize, MaxFileSysSize, CurrFileSysSize) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?)")
+            
+            print [name, ip, port, str(state), str(maxFileSize),
+                                     str(maxChunkSize), str(currFileSysSize)]
+            self.cur.execute(query, [name, ip, port, str(state), str(maxFileSize),
+                                     str(maxChunkSize), str(currFileSysSize)])
+
+                
 class LocalPeerDb(PeerDb):
     LOCAL_PEER_DB_FILE = "peer_db.db"
     def __init__(self):
