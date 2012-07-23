@@ -24,6 +24,7 @@ def _create_peer_socket(topeer):
 
 
 def send_message(msg, topeer=None, socket=None):
+    logging.debug("Sending a message with type " + str(msg.msg_type))
     if socket == None:
         socket = _create_peer_socket(topeer)
         peer_socket_index[topeer] = socket
@@ -43,11 +44,9 @@ def recv_bytes(socket, byteCount):
         if data == '':
             raise RuntimeError("socket connection broken")
         msg = msg + data
-    logging.debug("Received bytes: " + msg)
     return msg
 
-def recv_message(frompeer=None, socket=None):
-    logging.debug("Receiving a message")
+def recv_message(frompeer=None, socket=None):    
     if (frompeer == None and socket == None):
         raise Exception("Must enter a peer or socket to receive a message")    
     
@@ -70,5 +69,6 @@ def recv_message(frompeer=None, socket=None):
         if chunk == '':
             raise RuntimeError("socket connection broken")
         msg += chunk
-        
-    return pickle.loads(msg)
+    new_msg = pickle.loads(msg)
+    logging.debug("Received a message with type " + str(new_msg.msg_type))
+    return new_msg

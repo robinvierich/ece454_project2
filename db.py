@@ -96,7 +96,8 @@ class TrackerDb(PeerDb):
                 
     def add_peer(self, ip, port, state, maxFileSize, maxFileSysSize, currFileSysSize, name=""):
         logging.debug("Adding a new entry in Peers table")
-#        with self.connection:
+        # TODO Check if the peer with the same Port and IP is already there
+        # in which case just updated its state?
         query = ("INSERT INTO Peers " +
                  "(Name, Ip, Port, State, MaxFileSize, MaxFileSysSize, CurrFileSysSize) " +
                  "VALUES (?, ?, ?, ?, ?, ?, ?)")
@@ -112,6 +113,22 @@ class TrackerDb(PeerDb):
             res = self.cur.fetchone()
             
             return res[0]
+            
+    def get_peers_list(self, file_path=None):
+        with self.connection:
+            if file_path is None:
+                # just give them the list of all peers
+                query = "SELECT Id, Name, Ip, Port, State FROM Peers"
+            else:
+                # Lookup fileID then peers ids that have this file
+                query = "SELECT Id FROM Files WHERE FileName='" + file_path + "'"
+                self.cur.execute(query)
+                res = self.cur.fetchone()
+                #if res = None:
+                    
+                query = "SELECT DISTINCT PeerId FROM PeerFile WHERE  "
+            self.cur.execute(query)
+            self.cur.fetchone()
                 
 class LocalPeerDb(PeerDb):
     DB_FILE = "peer_db.db"
@@ -157,6 +174,7 @@ class DbThread(threading.Thread):
             with self.db.connection:
                 logging.debug("Performing a db statement: " + item[0] + " " + str(item[1]))
                 self.db.cur.execute(item[0], item[1])
+                self.db.connection.commit()
         logging.debug("DbThread finising run")
 
     def join(self, timeout=None):

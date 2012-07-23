@@ -72,8 +72,9 @@ class Tracker(LocalPeer):
     
     @check_connected
     def handle_PEER_LIST_REQUEST(self, client_socket, peer_list_request):
+        logging.debug("Handling the peer list request")
         file_path = peer_list_request.file_path
-                
+            
         # TODO: use DB to get connected peers + filter by the file_path
         peer_list = None
 

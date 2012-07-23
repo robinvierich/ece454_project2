@@ -71,6 +71,10 @@ class LocalPeer(Peer):
         if successful:
             logging.debug("Connection to tracker successful")
             self.start_accepting_connections()
+            self.state = PeerState.ONLINE
+            # get peers and file lists
+            self._get_peer_list(None)
+            self.ls()
         else:
             logging.debug("Connection to tracker unsuccessful")
         
@@ -273,13 +277,9 @@ class LocalPeer(Peer):
         pass
     def handle_CONNECT_RESPONSE(self, client_socket, msg):
         pass
-#        logging.debug("Connection response received")
-#        if msg.successful:
-#            self.state = ONLINE
-#            # get peers and file lists
-#            self._get_peer_list(None)
-#            self.ls()
 
+    # Not used. Communicaton is blocking. see connect()
+    def handle_CONNECT_RESPONSE(self, client_socket, msg):        
         pass
     def handle_DISCONNECT_REQUEST(self, client_socket, msg):
         pass
