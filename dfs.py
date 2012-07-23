@@ -83,13 +83,13 @@ def main():
         if options.port is None:
             print "You must specify the tracker's port."
             sys.exit()
-        init_tracker(options.port)
+        init_tracker(int(options.port))
     else:
         # initialize the local peer
         if options.port is None or options.ip is None:
             print "You must specify the IP and port of the tracker to connect to."
             sys.exit()
-        init_local_peer(options.ip, options.port)
+        init_local_peer(options.ip, int(options.port))
     
     # Very simple cli
     while(True):

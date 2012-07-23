@@ -19,6 +19,7 @@ peer_socket_index = {}
 def _create_peer_socket(topeer):
     peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     peer_socket.connect((topeer.hostname, topeer.port))
+    # TODO Handle refused connections
     return peer_socket 
 
 
@@ -48,6 +49,7 @@ def recv_bytes(socket, byteCount):
     return msg
 
 def recv_message(frompeer=None, socket=None):
+    logging.debug("Receiving a message")
     if (frompeer == None and socket == None):
         raise Exception("Must enter a peer or socket to receive a message")    
     
