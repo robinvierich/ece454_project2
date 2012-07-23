@@ -34,3 +34,9 @@ def delete_file(file_path):
         return
     
     os.remove(file_path)
+
+def move(src_path, dest_path):
+    if not os.path.exists(src_path):
+        return
+    
+    os.renames(src_path, dest_path)

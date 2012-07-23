@@ -157,9 +157,9 @@ class MoveResponse(Message):
         
 # doc says (file_id, dest_path) changed to (source_path, dest_path)  
 class Move(Message):
-    def __init__(self, source_path, dest_path):
+    def __init__(self, src_path, dest_path):
         super(Move, self).__init__(MessageType.MOVE)
-        self.source_path = source_path
+        self.src_path = src_path
         self.dest_path = dest_path
 
 

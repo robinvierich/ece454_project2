@@ -162,9 +162,25 @@ class LocalPeer(Peer):
         delete_msg = messages.Delete(file_path)
         for peer in peer_list:
             communication.send_message(delete_msg, peer)
+            
+        return True
     
-    def move(self,src_path, dest_path):
-        pass
+    def move(self, src_path, dest_path):
+        move_request = messages.MoveRequest(src_path, dest_path)
+        communication.send_message(move_request, self.tracker) 
+        move_response = communication.recv_message(self.tracker)
+        
+        if not move_response.valid:
+            return False
+        
+        filesystem.move(src_path, dest_path)
+        
+        peer_list = self._get_peer_list(src_path)
+        move_msg = messages.Move(src_path, dest_path)
+        for peer in peer_list:
+            communication.send_message(move_msg, peer, socket)
+        
+        return True
     
     def ls(self,dir_path=None):
         pass
@@ -298,7 +314,11 @@ class LocalPeer(Peer):
     def handle_MOVE_RESPONSE(self, client_socket, msg):
         pass
     def handle_MOVE(self, client_socket, msg):
-        pass
+        src_path = msg.src_path
+        dest_path = msg.dest_path
+        
+        filesystem.move(src_path, dest_path)
+    
     def handle_LIST_REQUEST(self, client_socket, msg):
         pass
     def handle_LIST(self, client_socket, msg):
