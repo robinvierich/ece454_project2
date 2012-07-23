@@ -4,7 +4,7 @@ tracker.py - global system tracker class
 import communication
 import db
 
-from peer import LocalPeer
+from peer import LocalPeer, PeerState
 import logging
 import messages
 
@@ -51,9 +51,14 @@ class Tracker(LocalPeer):
         #TODO: ensure getpeername() returns a unique identifier
         peer_endpoint = client_socket.getpeername()
 
-        port = client_socket.getsockaddress[1]
-        self.db.add_peer(peer_endpoint, port, PeerState.ONLINE, 
-        
+        port = client_socket.getpeername()[1]
+        self.db.add_peer(peer_endpoint, 
+                         port, 
+                         PeerState.ONLINE, 
+                         msg.max_file_size,
+                         msg.max_chunk_size,
+                         "")
+                         
         communication.send_message(response, socket=client_socket)
     
     @check_connected

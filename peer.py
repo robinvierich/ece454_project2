@@ -63,7 +63,7 @@ class LocalPeer(Peer):
 #        self._persisted_data[key] = value
     
     def connect(self, password):
-        connect_request = messages.ConnectRequest(password)
+        connect_request = messages.ConnectRequest(password, self.port)
         # Send Connection Request to Tracker
         communication.send_message(connect_request, self.tracker)
         response = communication.recv_message(self.tracker)
