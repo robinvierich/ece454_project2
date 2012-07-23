@@ -5,7 +5,7 @@ tracker.py - global system tracker class
 import socket
 import communication
 import db
-from peer import LocalPeer
+from peer import Peer, LocalPeer
 
 import messages
 
@@ -53,8 +53,11 @@ class Tracker(LocalPeer):
         if msg.pwd == "test":
             response.successful = True
         
+        #TODO: ensure getpeername() returns a unique identifier
         peer_endpoint = client_socket.getpeername()
-        connected_peers[peer_endpoint] = None
+        peer = Peer(peer_endpoint[0], peer_endpoint[1])
+        
+        connected_peers[peer] = None # add to connected peers index
         
         communication.send_message(response, socket=client_socket)
     
@@ -71,11 +74,19 @@ class Tracker(LocalPeer):
         communication.send_message(response, socket=client_socket)
     
     @check_connected
-    def handle_PEER_LIST_REQUEST(self, client_socket, msg):
-        pass
+    def handle_PEER_LIST_REQUEST(self, client_socket, peer_list_request):
+        file_path = peer_list_request.file_path
+                
+        # TODO: use DB to get connected peers + filter by the file_path
+        peer_list = connected_peers.keys()
+
+        response = messages.PeerList(peer_list)
+        communication.send_message(response, socket=client_socket)
     
     @check_connected
     def handle_NEW_FILE_AVAILABLE(self, client_socket, msg):
+        # TODO: add file to DB + choose peers where it should be replicated
+        
         pass
     
     @check_connected
