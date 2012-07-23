@@ -31,33 +31,33 @@ def init_tracker(tracker_port):
 
 # Connection
 def connect(password):
-    local_peer.connect(password)
+    return local_peer.connect(password)
     
 
 def disconnect(check_for_unreplicated_files=True):
-    local_peer.disconnect(check_for_unreplicated_files)
+    return local_peer.disconnect(check_for_unreplicated_files)
 
 
 # File Operations
 def read(file_path, start_offset=None, length=None):
     # query the tracker for the peers with this file_path
-    local_peer.read(file_path, start_offset, length)
+    return local_peer.read(file_path, start_offset, length)
 
 
 def write(file_path, new_data, start_offset=None):
-    local_peer.write(file_path, new_data, start_offset)
+    return local_peer.write(file_path, new_data, start_offset)
 
 def delete(file_path):
-    local_peer.delete(file_path)
+    return local_peer.delete(file_path)
 
 def move(src_path, dest_path):
-    local_peer.move(src_path, dest_path)
+    return local_peer.move(src_path, dest_path)
 
 def ls(dir_path=None):
-    local_peer.ls(dir_path)
+    return local_peer.ls(dir_path)
 
 def archive(file_path=None):
-    local_peer.archive(file_path)
+    return local_peer.archive(file_path)
 
 
 def main():

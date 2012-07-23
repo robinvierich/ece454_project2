@@ -16,20 +16,19 @@ MSGLEN_STRUCT_FORMAT = "<L"
 
 peer_socket_index = {}
 
-def _create_peer_socket(peer):
+def _create_peer_socket(topeer):
     peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    peer_socket.connect((peer.hostname, peer.port))
+    peer_socket.connect((topeer.hostname, topeer.port))
     return peer_socket 
 
 
-def send_message(msg, peer=None, socket=None):
-    
+def send_message(msg, topeer=None, socket=None):
     if socket == None:
-        socket = peer_socket_index.get(peer)
+        socket = peer_socket_index.get(topeer)
     
         if socket == None:
-            socket = _create_peer_socket(peer)
-            peer_socket_index[peer] = socket
+            socket = _create_peer_socket(topeer)
+            peer_socket_index[topeer] = socket
     
     serial_msg = pickle.dumps(msg, protocol=pickle.HIGHEST_PROTOCOL)
     msglen_header = struct.pack(MSGLEN_STRUCT_FORMAT, len(serial_msg))
@@ -49,15 +48,15 @@ def recv_bytes(socket, byteCount):
     logging.debug("Received bytes: " + msg)
     return msg
 
-def recv_message(peer=None, socket=None):
-    if (peer == None and socket == None):
+def recv_message(frompeer=None, socket=None):
+    if (frompeer == None and socket == None):
         raise Exception("Must enter a peer or socket to receive a message")    
     
     if socket == None:
-        socket = peer_socket_index.get(peer)
+        socket = peer_socket_index.get(frompeer)
         if socket == None:
-            socket = _create_peer_socket(peer)
-            peer_socket_index[peer] = socket    
+            socket = _create_peer_socket(frompeer)
+            peer_socket_index[frompeer] = socket    
       
     msg = ''
     msglen_header = recv_bytes(socket, 4)

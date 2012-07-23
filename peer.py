@@ -37,6 +37,7 @@ class LocalPeer(Peer):
         else:
             self.db = LocalPeerDb()
             # Connect to the tracker
+            self.tracker = Peer(tracker.Tracker.HOSTNAME, tracker.Tracker.PORT)
     
     def start_server(self):
         connected = False
@@ -56,8 +57,8 @@ class LocalPeer(Peer):
     def connect(self,password):
         connect_request = messages.ConnectRequest(password)
         # Send Connection Request to Tracker
-        communication.send_message(connect_request, tracker)
-        response = communication.recv_message(tracker)
+        communication.send_message(connect_request, self.tracker)
+        response = communication.recv_message(self.tracker)
         
         successful = response.successful
         if successful:
@@ -66,12 +67,12 @@ class LocalPeer(Peer):
         return successful
 
     def disconnect(self,check_for_unreplicated_files=True):
-        communication.send_message(messages.DisconnectRequest(), tracker)
-        response = communication.recv_message(tracker) # blocks
+        communication.send_message(messages.DisconnectRequest(), self.tracker)
+        response = communication.recv_message(self.tracker) # blocks
         
         while (response.should_wait):
             #communication.send_message(messages.DisconnectRequest(), tracker)
-            response = communication.recv_message(tracker) # blocks    
+            response = communication.recv_message(self.tracker) # blocks    
         
         
         self.stop()
@@ -84,22 +85,29 @@ class LocalPeer(Peer):
         pass
     
     
-    def write(self,file_path, new_data, start_offset=None):
+    def write(self, file_path, new_data, start_offset=None):
+        is_new_file = not os.path.exists(file_path)
+        
         filesystem.write_file(file_path, new_data, start_offset)
         
         data = filesystem.read_file(file_path)
         new_checksum = checksum.calc_checksum(data)
         
+        # get peer list
         peer_list_request = messages.PeerListRequest(file_path)
-        communication.send_message(peer_list_request, tracker)
+        communication.send_message(peer_list_request, self.tracker)
         
-        peer_list_response = communication.recv_message(tracker)
+        peer_list_response = communication.recv_message(self.tracker)
         peer_list = peer_list_response.peer_list
         
+        if is_new_file:
+            new_data = filesystem.read_file(file_path) # we have to read here in case there was an offset
+            file_msg = messages.NewFileAvailable(file_path, new_checksum, new_data)
+        else:
+            file_msg = messages.FileChanged(file_path, new_checksum, new_data, start_offset)
+        
         for peer in peer_list:
-            file_changed_msg = messages.FileChanged(file_path, new_checksum, new_data, start_offset)
-            communication.send_message(file_changed_msg, peer)
-            
+            communication.send_message(file_msg, peer)
         
     
     def delete(self,file_path):
