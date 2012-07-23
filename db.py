@@ -50,6 +50,9 @@ class PeerDb(object):
     # TODO add parents
     def add_file(self, fileName, isDirectory, size, checksum, lastVerNum):
         logging.debug("Adding a new entry in Files table")
+        logging.debug("Waiting until the DB Commit queue is empty")
+        self.q.join()
+        logging.debug("The DB Commit queue is now empty. Gonna execute the query now.")
         with self.connection:
             query = ("INSERT INTO Files " +
                      "(FileName, IsDirectory, Size, GoldenChecksum, LastVersionNumber) " +
@@ -96,6 +99,9 @@ class TrackerDb(PeerDb):
                 
     def add_peer(self, ip, port, state, maxFileSize, maxFileSysSize, currFileSysSize, name=""):
         logging.debug("Adding a new entry in Peers table")
+        logging.debug("Waiting until the DB Commit queue is empty")
+        self.q.join()
+        logging.debug("The DB Commit queue is now empty. Gonna execute the query now.")
         # TODO Check if the peer with the same Port and IP is already there
         # in which case just updated its state?
         query = ("INSERT INTO Peers " +
@@ -106,6 +112,9 @@ class TrackerDb(PeerDb):
                             str(maxFileSysSize), str(currFileSysSize)]), [])
 
     def get_peer_state(self, ip):
+        logging.debug("Waiting until the DB Commit queue is empty")
+        self.q.join()
+        logging.debug("The DB Commit queue is now empty. Gonna execute the query now.")
         with self.connection:
             query = ("SELECT State FROM Peers " +
                  "WHERE ip='%s'" % ip)
@@ -114,7 +123,10 @@ class TrackerDb(PeerDb):
             
             return res[0]
             
-    def get_peers_list(self, file_path=None):
+    def get_peer_list(self, file_path=None):
+        logging.debug("Waiting until the DB Commit queue is empty")
+        self.q.join()
+        logging.debug("The DB Commit queue is now empty. Gonna execute the query now.")
         with self.connection:
             if file_path is None:
                 # just give them the list of all peers
@@ -124,11 +136,20 @@ class TrackerDb(PeerDb):
                 query = "SELECT Id FROM Files WHERE FileName='" + file_path + "'"
                 self.cur.execute(query)
                 res = self.cur.fetchone()
-                #if res = None:
-                    
-                query = "SELECT DISTINCT PeerId FROM PeerFile WHERE  "
+                if res is None:
+                    raise RuntimeError("Cannot find file with name " + file_path)
+                query = "SELECT PeerId FROM PeerFile WHERE FileId=" + str(res[0])
+                self.cur.execute(query)
+                res = self.cur.fetchall()
+                if res is None:
+                    raise RuntimeError("Cannot find peer that has file " + file_path)
+                query = "SELECT Id, Name, Ip, Port, State FROM Peers WHERE Id=" + str(res[0])
+
             self.cur.execute(query)
-            self.cur.fetchone()
+            res = self.cur.fetchall()
+            if res is None:
+                raise RuntimeError("Cannot get a peers list " + file_path)
+            return res            
                 
 class LocalPeerDb(PeerDb):
     DB_FILE = "peer_db.db"
@@ -155,6 +176,16 @@ class LocalPeerDb(PeerDb):
                 self.q.put(("CREATE TABLE LocalPeerExcludedFiles(Id INTEGER PRIMARY KEY " +
                             "AUTOINCREMENT, FileId INT, FileNamePattern TEXT)", []))
 
+    # delete everything in the peers table and insert
+    def clear_peers_and_insert(self, peers_list):
+        logging.debug("Waiting until the DB Commit queue is empty")
+        self.q.join()
+        logging.debug("The DB Commit queue is now empty. Gonna execute the query now.")
+        query = "DELETE FROM Peers"
+        self.q.put((query, []))
+        query = "INSERT INTO Peers VALUES (?, ?, ?, ?, ?)"
+        self.q.put((query, peers_list))
+
 class DbThread(threading.Thread):
     def __init__(self, db):            
         super(DbThread, self).__init__()
@@ -173,8 +204,13 @@ class DbThread(threading.Thread):
             item = self.db.q.get(block=True)            
             with self.db.connection:
                 logging.debug("Performing a db statement: " + item[0] + " " + str(item[1]))
-                self.db.cur.execute(item[0], item[1])
+                try:
+                   tmp = item[1][0][0]
+                   self.db.cur.executemany(item[0], item[1])
+                except:
+                    self.db.cur.execute(item[0], item[1])
                 self.db.connection.commit()
+                self.db.q.task_done()
         logging.debug("DbThread finising run")
 
     def join(self, timeout=None):

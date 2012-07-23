@@ -73,7 +73,8 @@ class LocalPeer(Peer):
             self.start_accepting_connections()
             self.state = PeerState.ONLINE
             # get peers and file lists
-            self._get_peer_list(None)
+            peer_list = self._get_peer_list(None)
+            self.db.clear_peers_and_insert(peer_list)
             self.ls()
         else:
             logging.debug("Connection to tracker unsuccessful")
@@ -232,11 +233,13 @@ class LocalPeer(Peer):
     #TODO: Probably makes more sense to make all these functions part of the peer class
     
     def _get_peer_list(self, file_path):
+        logging.debug("Requesting a peers list")
         peer_list_request = messages.PeerListRequest(file_path)
         communication.send_message(peer_list_request, self.tracker)
         
         peer_list_response = communication.recv_message(self.tracker)
         peer_list = peer_list_response.peer_list
+        logging.debug("Received a peers list:\n" + str(peer_list))
         return peer_list
     
     def get_handler_method_index(self):
