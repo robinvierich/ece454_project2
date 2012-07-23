@@ -6,6 +6,7 @@ import socket
 import threading
 import os.path
 import logging
+import random
 
 import communication
 from messages import MessageType
@@ -31,7 +32,9 @@ class LocalPeer(Peer):
         super(LocalPeer, self).__init__(hostname, port)
         
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._acceptorThread = AcceptorThread(self)
         self.start_server()
+        
         if self.is_not_tracker():
             self.db = LocalPeerDb()
             # Connect to the tracker
@@ -52,10 +55,10 @@ class LocalPeer(Peer):
             except:
                 self.port += 1
     
-    def persist(self, (key, value)):
-        
-        # we'll add sql here, just a standard dict for now
-        self._persisted_data[key] = value
+#    def persist(self, (key, value)):
+#        
+#        # we'll add sql here, just a standard dict for now
+#        self._persisted_data[key] = value
     
     def connect(self, password):
         connect_request = messages.ConnectRequest(password)
@@ -80,13 +83,45 @@ class LocalPeer(Peer):
         
         self.stop()
     
+    def _download_file(self, file_path, maxAttempts=3):
+        # get peer list for this file_path
+        peer_list = self._get_peer_list(file_path)
+        
+        attempt = 0
+        while attempt < maxAttempts:
+            response = None
+            # download the file from a peer
+            for peer in peer_list:
+                file_download_request = messages.FileDownloadRequest(file_path)
+                communication.send_message(file_download_request, peer)
+                
+                response = communication.recv_message(peer)
+                if isinstance(response, messages.FileData):
+                    break
+            
+            if response == None:
+                return None
+        
+            filesystem.write_file(file_path, response.file_data)
+            data = filesystem.read_file(file_path)
+            new_checksum = checksum.calc_checksum(data)
+        
+            if new_checksum == response.file_checksum:
+                return data
+            else:
+                attempt += 1
+        
+        raise Exception("download_file failed - max attempts reached")
     
     # File Operations
-    
     def read(self, file_path, start_offset=None, length=None):
-        # query the tracker for the peers with this file_path
-        pass
-    
+        file_data = filesystem.read_file(file_path)
+        if file_data != None:
+            return file_data
+        
+        file_data = self._download_file(file_path)
+        
+        return file_data
     
     def write(self, file_path, new_data, start_offset=None):
         is_new_file = not os.path.exists(file_path)
@@ -97,11 +132,7 @@ class LocalPeer(Peer):
         new_checksum = checksum.calc_checksum(data)
         
         # get peer list
-        peer_list_request = messages.PeerListRequest(file_path)
-        communication.send_message(peer_list_request, self.tracker)
-        
-        peer_list_response = communication.recv_message(self.tracker)
-        peer_list = peer_list_response.peer_list
+        peer_list = self._get_peer_list(file_path)
         
         if is_new_file:
             new_data = filesystem.read_file(file_path) # we have to read here in case there was an offset
@@ -126,7 +157,7 @@ class LocalPeer(Peer):
         pass
     
     def start_accepting_connections(self):
-        self._acceptorThread = AcceptorThread(self)
+        
         self._acceptorThread.start()
     
     def stop(self):
@@ -148,6 +179,14 @@ class LocalPeer(Peer):
         pass
 
     #TODO: Probably makes more sense to make all these functions part of the peer class
+    
+    def _get_peer_list(self, file_path):
+        peer_list_request = messages.PeerListRequest(file_path)
+        communication.send_message(peer_list_request, self.tracker)
+        
+        peer_list_response = communication.recv_message(self.tracker)
+        peer_list = peer_list_response.peer_list
+        return peer_list
     
     def get_handler_method_index(self):
         return {MessageType.ARCHIVE_REQUEST : self.handle_ARCHIVE_REQUEST,

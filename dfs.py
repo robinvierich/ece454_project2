@@ -5,13 +5,8 @@ Provides the interface to the distributed file system.
 An entry point of dfs.
 '''
 
-import socket
-import communication
-import messages
-import checksum
-import filesystem
 from tracker import Tracker
-from peer import Peer, LocalPeer
+from peer import LocalPeer
 from optparse import OptionParser
 import logging
 import sys
@@ -108,7 +103,7 @@ def main():
             if not os.path.exists(f):
                 print "File doesn't exist"
                 continue
-            localPeer.add_new_file(f)
+            local_peer.add_new_file(f)
         elif re.match(r'^quit', inp):
             sys.exit()
 

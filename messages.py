@@ -73,21 +73,24 @@ class PeerListRequest(Message):
 class PeerList(Message):
     def __init__(self, peer_list):
         super(PeerList, self).__init__(MessageType.PEER_LIST)
-        pass
+        self.peer_list = peer_list
 
 class FileDownloadRequest(Message):
     def __init__(self, file_path):
         super(FileDownloadRequest, self).__init__(MessageType.FILE_DOWNLOAD_REQUEST)
-        
+        self.file_path = file_path
 
 class FileDownloadDecline(Message):
     def __init__(self, file_path):
         super(FileDownloadDecline, self).__init__(MessageType.FILE_DOWNLOAD_DECLINE)
-        
+        self.file_path = file_path
 
 class FileData(Message):
     def __init__(self, file_path, file_checksum, data):
         super(FileData, self).__init__(MessageType.FILE_DATA)
+        self.file_path = file_path
+        self.file_checksum = file_checksum
+        self.file_data = data
 
 class FileChanged(Message):
     def __init__(self, file_path, new_checksum, new_data, start_offset):
