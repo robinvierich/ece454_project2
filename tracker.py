@@ -1,10 +1,9 @@
 '''
 tracker.py - global system tracker class
 '''
-
-import socket
 import communication
 import db
+
 from peer import LocalPeer
 import logging
 import messages
@@ -28,12 +27,8 @@ def check_connected(function):
             
         return_value = function(*args, **kwargs)
         return return_value
-            
         
     return wrapper
-
-
-
 
 class Tracker(LocalPeer):
     
@@ -74,11 +69,19 @@ class Tracker(LocalPeer):
         communication.send_message(response, socket=client_socket)
     
     @check_connected
-    def handle_PEER_LIST_REQUEST(self, client_socket, msg):
-        pass
+    def handle_PEER_LIST_REQUEST(self, client_socket, peer_list_request):
+        file_path = peer_list_request.file_path
+                
+        # TODO: use DB to get connected peers + filter by the file_path
+        peer_list = connected_peers.keys()
+
+        response = messages.PeerList(peer_list)
+        communication.send_message(response, socket=client_socket)
     
     @check_connected
     def handle_NEW_FILE_AVAILABLE(self, client_socket, msg):
+        # TODO: add file to DB + choose peers where it should be replicated
+        
         pass
     
     @check_connected

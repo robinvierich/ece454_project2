@@ -78,13 +78,11 @@ class LocalPeer(Peer):
 
     def disconnect(self,check_for_unreplicated_files=True):
         communication.send_message(messages.DisconnectRequest(), self.tracker)
-        response = communication.recv_message(self.tracker) # blocks
+        response = communication.recv_message(self.tracker)
         
         while (response.should_wait):
-            #communication.send_message(messages.DisconnectRequest(), tracker)
-            response = communication.recv_message(self.tracker) # blocks    
-        
-        
+            response = communication.recv_message(self.tracker)
+
         self.stop()
     
     def _download_file(self, file_path, maxAttempts=3):
@@ -137,17 +135,19 @@ class LocalPeer(Peer):
         data = filesystem.read_file(file_path)
         new_checksum = checksum.calc_checksum(data)
         
-        # get peer list
-        peer_list = self._get_peer_list(file_path)
-        
         if is_new_file:
             new_data = filesystem.read_file(file_path) # we have to read here in case there was an offset
             file_msg = messages.NewFileAvailable(file_path, new_checksum, new_data)
+            communication.send_message(file_msg, self.tracker) # let the tracker know about the new file
         else:
             file_msg = messages.FileChanged(file_path, new_checksum, new_data, start_offset)
         
+        # get peer list
+        peer_list = self._get_peer_list(file_path)
+        
         for peer in peer_list:
             communication.send_message(file_msg, peer)
+        
         
     
     def delete(self, file_path):
@@ -202,7 +202,6 @@ class LocalPeer(Peer):
         return archive_response.archived
     
     def start_accepting_connections(self):
-        
         self._acceptorThread.start()
     
     def stop(self):
@@ -311,7 +310,7 @@ class LocalPeer(Peer):
             communication.send_message(messages.FileDownloadRequest(path), client_socket)
     
     def handle_NEW_FILE_AVAILABLE(self, client_socket, msg):
-        pass
+        self._download_file(msg.file_path)
     
     def handle_VALIDATE_CHECKSUM_REQUEST(self, client_socket, msg):
         pass
@@ -333,6 +332,7 @@ class LocalPeer(Peer):
         pass
     def handle_MOVE_RESPONSE(self, client_socket, msg):
         pass
+    
     def handle_MOVE(self, client_socket, msg):
         src_path = msg.src_path
         dest_path = msg.dest_path
@@ -356,7 +356,7 @@ class AcceptorThread(threading.Thread):
         self.alive = threading.Event()
         self.alive.set()
         # terminate this thread when the main thread exits
-        threading.Thread.setDaemon(self, True)
+        self.daemon = True
 
     def run(self):        
         server_socket = self._peer.get_server_socket()
