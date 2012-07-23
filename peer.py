@@ -183,10 +183,19 @@ class LocalPeer(Peer):
         return True
     
     def ls(self,dir_path=None):
-        pass
+        list_request = messages.ListRequest(dir_path)
+        communication.send_message(list_request, self.tracker)
+        list_response = communication.recv_message(self.tracker)
+        
+        return list_response.file_list
+        
     
-    def archive(self,file_path=None):
-        pass
+    def archive(self,file_path):
+        archive_request = messages.ArchiveRequest(file_path)
+        communication.send_message(archive_request, self.tracker)
+        archive_response = communication.recv_message(self.tracker)
+        
+        return archive_response.archived
     
     def start_accepting_connections(self):
         
