@@ -44,7 +44,8 @@ def run_tests():
     
     dfs.init_local_peer(Tracker.HOSTNAME, Tracker.PORT)
     
-    test_connect()
+    #test_connect()
+    
     test_write()
 
 if __name__ == "__main__":

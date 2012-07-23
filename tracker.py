@@ -9,8 +9,6 @@ import logging
 import messages
 import peer
 
-# this will be in DB later
-connected_peers = {}
 
 def check_connected(function):
     """A decorator that checks if the requesting peer is connected 
@@ -18,11 +16,13 @@ def check_connected(function):
             - returns if not connected """
 
     def wrapper(*args, **kwargs):
-        
+        tracker = args[0]
         peer_socket = args[1]
         peer_endpoint = peer_socket.getpeername()
         
-        if not connected_peers.has_key(peer_endpoint):
+        peer_hostname = peer_endpoint[0]
+        
+        if tracker.db.get_peer_state(peer_hostname) != PeerState.ONLINE:
             return
             
         return_value = function(*args, **kwargs)
@@ -75,7 +75,7 @@ class Tracker(LocalPeer):
         file_path = peer_list_request.file_path
                 
         # TODO: use DB to get connected peers + filter by the file_path
-        peer_list = connected_peers.keys()
+        peer_list = None
 
         response = messages.PeerList(peer_list)
         communication.send_message(response, socket=client_socket)

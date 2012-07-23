@@ -61,7 +61,6 @@ class LocalPeer(Peer):
                 self.port += 1
         
     def connect(self, password):
-
         connect_request = messages.ConnectRequest(password, self.port, LocalPeer.MAX_FILE_SIZE,
                                                   LocalPeer.MAX_FILE_SYS_SIZE, 0)
         # Send Connection Request to Tracker
@@ -70,10 +69,10 @@ class LocalPeer(Peer):
         
         successful = response.successful
         if successful:
-            logging.debug("Connection to tracker successfull")
+            logging.debug("Connection to tracker successful")
             self.start_accepting_connections()
         else:
-            logging.debug("Connection to tracker unsuccessfull")
+            logging.debug("Connection to tracker unsuccessful")
         
         return successful
 
@@ -273,12 +272,13 @@ class LocalPeer(Peer):
     def handle_CONNECT_REQUEST(self, client_socket, msg):
         pass
     def handle_CONNECT_RESPONSE(self, client_socket, msg):
-        logging.debug("Connection response received")
-        if msg.successful:
-            self.state = ONLINE
-            # get peers and file lists
-            self._get_peer_list(None)
-            self.ls()
+        pass
+#        logging.debug("Connection response received")
+#        if msg.successful:
+#            self.state = ONLINE
+#            # get peers and file lists
+#            self._get_peer_list(None)
+#            self.ls()
 
         pass
     def handle_DISCONNECT_REQUEST(self, client_socket, msg):

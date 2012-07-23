@@ -28,8 +28,6 @@ def send_message(msg, topeer=None, socket=None):
         socket = _create_peer_socket(topeer)
         peer_socket_index[topeer] = socket
     
-        
-    
     serial_msg = pickle.dumps(msg, protocol=pickle.HIGHEST_PROTOCOL)
     msglen_header = struct.pack(MSGLEN_STRUCT_FORMAT, len(serial_msg))
     

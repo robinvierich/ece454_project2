@@ -71,7 +71,7 @@ class DisconnectResponse(Message):
 class PeerListRequest(Message):
     def __init__(self, file_path):
         super(PeerListRequest, self).__init__(MessageType.PEER_LIST_REQUEST)
-        self._filePath = file_path
+        self.file_path = file_path
 
 class PeerList(Message):
     def __init__(self, peer_list):

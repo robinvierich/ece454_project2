@@ -96,14 +96,22 @@ class TrackerDb(PeerDb):
                 
     def add_peer(self, ip, port, state, maxFileSize, maxFileSysSize, currFileSysSize, name=""):
         logging.debug("Adding a new entry in Peers table")
-        with self.connection:
-            query = ("INSERT INTO Peers " +
-                     "(Name, Ip, Port, State, MaxFileSize, MaxFileSysSize, CurrFileSysSize) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?)")
-            
-            self.q.put((query, [name, ip, port, str(state), str(maxFileSize),
-                                str(maxFileSysSize), str(currFileSysSize)]), [])
+#        with self.connection:
+        query = ("INSERT INTO Peers " +
+                 "(Name, Ip, Port, State, MaxFileSize, MaxFileSysSize, CurrFileSysSize) " +
+                 "VALUES (?, ?, ?, ?, ?, ?, ?)")
+        
+        self.q.put((query, [name, ip, port, str(state), str(maxFileSize),
+                            str(maxFileSysSize), str(currFileSysSize)]), [])
 
+    def get_peer_state(self, ip):
+        with self.connection:
+            query = ("SELECT State FROM Peers " +
+                 "WHERE ip='%s'" % ip)
+            self.cur.execute(query)
+            res = self.cur.fetchone()
+            
+            return res[0]
                 
 class LocalPeerDb(PeerDb):
     DB_FILE = "peer_db.db"
