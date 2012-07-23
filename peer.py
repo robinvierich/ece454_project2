@@ -33,6 +33,8 @@ class Peer(object):
 
 class LocalPeer(Peer):  
     PASSWORD = '12345'
+    MAX_FILE_SIZE = 100000000
+    MAX_FILE_SYS_SIZE = 1000000000
     def __init__(self, hostname=Peer.HOSTNAME, port=Peer.PORT):
         super(LocalPeer, self).__init__(hostname, port)        
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -43,6 +45,7 @@ class LocalPeer(Peer):
             self.tracker = Peer(tracker.Tracker.HOSTNAME, tracker.Tracker.PORT)
             self.db = LocalPeerDb()
             self.connect(LocalPeer.PASSWORD)            
+            self.state = PeerState.OFFLINE
 
     def start_server(self):        
         connected = False
@@ -56,14 +59,11 @@ class LocalPeer(Peer):
                 logging.debug("Couldn't listen on port " + str(self.port) + 
                               ". Trying " + str(self.port + 1))                              
                 self.port += 1
-    
-#    def persist(self, (key, value)):
-#        
-#        # we'll add sql here, just a standard dict for now
-#        self._persisted_data[key] = value
-    
+        
     def connect(self, password):
-        connect_request = messages.ConnectRequest(password, self.port)
+
+        connect_request = messages.ConnectRequest(password, self.port, LocalPeer.MAX_FILE_SIZE,
+                                                  LocalPeer.MAX_FILE_SYS_SIZE, 0)
         # Send Connection Request to Tracker
         communication.send_message(connect_request, self.tracker)
         response = communication.recv_message(self.tracker)
@@ -203,6 +203,9 @@ class LocalPeer(Peer):
         return archive_response.archived
     
     def start_accepting_connections(self):
+        if self._acceptorThread.is_alive():
+            return
+        
         self._acceptorThread.start()
     
     def stop(self):
@@ -270,6 +273,13 @@ class LocalPeer(Peer):
     def handle_CONNECT_REQUEST(self, client_socket, msg):
         pass
     def handle_CONNECT_RESPONSE(self, client_socket, msg):
+        logging.debug("Connection response received")
+        if msg.successful:
+            self.state = ONLINE
+            # get peers and file lists
+            self._get_peer_list(None)
+            self.ls()
+
         pass
     def handle_DISCONNECT_REQUEST(self, client_socket, msg):
         pass

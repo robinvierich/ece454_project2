@@ -7,6 +7,7 @@ import db
 from peer import LocalPeer, PeerState
 import logging
 import messages
+import peer
 
 # this will be in DB later
 connected_peers = {}
@@ -18,7 +19,7 @@ def check_connected(function):
 
     def wrapper(*args, **kwargs):
         
-        peer_socket = args[0]
+        peer_socket = args[1]
         peer_endpoint = peer_socket.getpeername()
         
         if not connected_peers.has_key(peer_endpoint):
@@ -35,30 +36,26 @@ class Tracker(LocalPeer):
     PORT = 12345
    
     def __init__(self, port=PORT):
-        # add all local files to the state data
-        # TODO
         super(Tracker, self).__init__(hostname=Tracker.HOSTNAME, port=port)
         self.db = db.TrackerDb()
         self.start_accepting_connections()
 
-    def handle_CONNECT_REQUEST(self, client_socket, msg):
-        logging.debug("Handling a connect request message")
+    def handle_CONNECT_REQUEST(self, client_socket, msg):        
         response = messages.ConnectResponse(successful=False)
         
         if msg.pwd == LocalPeer.PASSWORD:
+            logging.debug("Connection request - password OK")
             response.successful = True
-        
-        #TODO: ensure getpeername() returns a unique identifier
-        peer_endpoint = client_socket.getpeername()
 
-        port = client_socket.getpeername()[1]
-        self.db.add_peer(peer_endpoint, 
-                         port, 
-                         PeerState.ONLINE, 
-                         msg.max_file_size,
-                         msg.max_chunk_size,
-                         "")
-                         
+            peer_endpoint = client_socket.getpeername()
+            logging.debug("Peer address: " + str(peer_endpoint[0]) + " " + str(msg.port)) 
+            self.db.add_peer(peer_endpoint[0], msg.port, peer.PeerState.ONLINE, msg.maxFileSize,
+                             msg.maxFileSysSize, msg.currFileSysSize)
+            
+        else:
+            logging.debug("Connection Request - wrong password")        
+        
+
         communication.send_message(response, socket=client_socket)
     
     @check_connected

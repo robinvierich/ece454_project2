@@ -42,11 +42,13 @@ class Message(object):
         self.msg_type = msg_type
 
 class ConnectRequest(Message):
-    def __init__(self, pwd, port):
+    def __init__(self, pwd, port, maxFileSize, maxFileSysSize, currFileSysSize):
         super(ConnectRequest, self).__init__(MessageType.CONNECT_REQUEST)
         self.pwd = pwd
         self.port = port
-        
+        self.maxFileSize = maxFileSize
+        self.maxFileSysSize = maxFileSysSize
+        self.currFileSysSize = currFileSysSize
 
 class ConnectResponse(Message):
     def __init__(self, successful):
