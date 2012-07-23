@@ -53,7 +53,65 @@ class LocalPeer(Peer):
         # we'll add sql here, just a standard dict for now
         self._persisted_data[key] = value
     
-    def send_message(self, msg):
+    def connect(self,password):
+        connect_request = messages.ConnectRequest(password)
+        # Send Connection Request to Tracker
+        communication.send_message(connect_request, tracker)
+        response = communication.recv_message(tracker)
+        
+        successful = response.successful
+        if successful:
+            self.start_accepting_connections()
+        
+        return successful
+
+    def disconnect(self,check_for_unreplicated_files=True):
+        communication.send_message(messages.DisconnectRequest(), tracker)
+        response = communication.recv_message(tracker) # blocks
+        
+        while (response.should_wait):
+            #communication.send_message(messages.DisconnectRequest(), tracker)
+            response = communication.recv_message(tracker) # blocks    
+        
+        
+        self.stop()
+    
+    
+    # File Operations
+    
+    def read(self, file_path, start_offset=None, length=None):
+        # query the tracker for the peers with this file_path
+        pass
+    
+    
+    def write(self,file_path, new_data, start_offset=None):
+        filesystem.write_file(file_path, new_data, start_offset)
+        
+        data = filesystem.read_file(file_path)
+        new_checksum = checksum.calc_checksum(data)
+        
+        peer_list_request = messages.PeerListRequest(file_path)
+        communication.send_message(peer_list_request, tracker)
+        
+        peer_list_response = communication.recv_message(tracker)
+        peer_list = peer_list_response.peer_list
+        
+        for peer in peer_list:
+            file_changed_msg = messages.FileChanged(file_path, new_checksum, new_data, start_offset)
+            communication.send_message(file_changed_msg, peer)
+            
+        
+    
+    def delete(self,file_path):
+        pass
+    
+    def move(self,src_path, dest_path):
+        pass
+    
+    def ls(self,dir_path=None):
+        pass
+    
+    def archive(self,file_path=None):
         pass
     
     def start_accepting_connections(self):
