@@ -131,9 +131,10 @@ class ValidateChecksumResponse(Message):
 
 
 class NewFileAvailable(Message):
-    def __init__(self, file_model):
+    def __init__(self, file_model, port):
         super(NewFileAvailable, self).__init__(MessageType.NEW_FILE_AVAILABLE)
         self.file_model = file_model
+        self.port = port
     
 # doc says (file_id), changed to (file_path)
 class DeleteRequest(Message):
