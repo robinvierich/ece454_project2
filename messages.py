@@ -38,12 +38,13 @@ class MessageType(object):
 
 
 class FileModel(object):
-    def __init__(self, path, is_dir, checksum, size, data=None):
+    def __init__(self, path, is_dir, checksum, size, latest_version, data=None):
         self.path = path
         self.is_dir = is_dir
         self.checksum = checksum
         self.size = size
         self.data = data
+        self.latest_version = latest_version
         
         
 class Message(object):    

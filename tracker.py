@@ -93,13 +93,10 @@ class Tracker(LocalPeer):
         # TODO: peers where file should be replicated
         f = new_file_available_msg.file_model
         
-        file_path = f.file_path
-        is_directory = f.is_directory
-        checksum = f.checksum
-        size = f.size
-        latest_version = f.latest_version
+        self.db.add_file(f)
         
-        self.db.add_file(file_path, is_directory, size, checksum, latest_version)
+        # TODO: insert into PeerFile table
+        #self.db.
     
     @check_connected
     def handle_LIST_REQUEST(self, client_socket, list_request):

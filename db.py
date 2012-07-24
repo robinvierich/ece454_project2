@@ -16,9 +16,9 @@ def wait_for_commit_queue(function):
 
     def wrapper(*args, **kwargs):
         db = args[0]
-        logging.info(function.func_name + " - Waiting until the DB Commit queue is empty")
+        logging.debug(function.func_name + " - Waiting until the DB Commit queue is empty")
         db.q.join()
-        logging.info("Commit queue is now empty. Executing query")
+        logging.debug("Commit queue is now empty. Executing query")
 
         return_value = function(*args, **kwargs)
         return return_value
@@ -43,7 +43,7 @@ class PeerDb(object):
                              "AND name='Files'")
             res = self.cur.fetchone()
             if res[0] == 0:
-                logging.debug("Creating the Files table")
+                logging.info("Creating the Files table")
                 self.cur.execute("CREATE TABLE Files(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                             "FileName TEXT, IsDirectory INT, " +
                             "GoldenChecksum BLOB, Size INT, LastVersionNumber INT, " +
@@ -54,7 +54,7 @@ class PeerDb(object):
                              "AND name='Version'")
             res = self.cur.fetchone()
             if res[0] == 0:
-                logging.debug("Creating the Version table")
+                logging.info("Creating the Version table")
                 self.cur.execute("CREATE TABLE Version(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                             "FileId INT, VersionNumber INT, " +
                             "VersionName TEXT, FileSize INT, Checksum BLOB)", [])
@@ -64,7 +64,7 @@ class PeerDb(object):
                              "AND name='LocalPeerFiles'")
             res = self.cur.fetchone()
             if res[0] == 0:
-                logging.debug("Creating the LocalPeerFiles table")
+                logging.info("Creating the LocalPeerFiles table")
                 self.cur.execute("CREATE TABLE LocalPeerFiles(FileId INT)", [])
 
     @wait_for_commit_queue
@@ -115,7 +115,7 @@ class PeerDb(object):
                             str(f.is_dir), 
                             str(f.size),
                             sqlite3.Binary(f.checksum), 
-                            str(f.last_ver_num))
+                            str(f.latest_version))
                     ))
         
     @wait_for_commit_queue        
@@ -130,7 +130,7 @@ class PeerDb(object):
                             str(f.is_dir),
                             sqlite3.Binary(f.checksum), 
                             str(f.size),
-                            str(f.last_ver_num))
+                            str(f.latest_version))
                     ))
 
     # Delete everything from the files table and repopulate it with file_list
@@ -229,7 +229,7 @@ class TrackerDb(PeerDb):
                 query = "SELECT PeerId FROM PeerFile WHERE FileId=" + str(res[0])
                 self.cur.execute(query)
                 res = self.cur.fetchall()
-                if res is None:
+                if not res:
                     raise RuntimeError("Cannot find peer that has file " + file_path)
                 query = "SELECT Id, Name, Ip, Port, State FROM Peers WHERE Id=" + str(res[0])
 

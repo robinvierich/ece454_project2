@@ -6,7 +6,6 @@ import socket
 import threading
 import os.path
 import logging
-import random
 
 import communication
 from messages import MessageType, FileModel
@@ -14,9 +13,7 @@ import messages
 import checksum
 import filesystem
 import tracker
-from db import PeerDb, LocalPeerDb, TrackerDb
-
-import pdb
+from db import LocalPeerDb
 
 class PeerState(object):
     ONLINE = 1
@@ -178,7 +175,7 @@ class LocalPeer(Peer):
     
     @check_tracker_online
     def read(self, file_path, start_offset=None, length=-1):
-        file_data = filesystem.read_file(self.root_path + file_path, start_offset, length)
+        file_data = filesystem.read_file(self.get_local_path(file_path), start_offset, length)
         if file_data != None:
             return file_data
         
@@ -200,7 +197,7 @@ class LocalPeer(Peer):
     
     @check_tracker_online
     def write(self, file_path, new_data, start_offset=None):
-        is_new_file = bool(self.db.get_file(file_path))
+        is_new_file = not bool(self.db.get_file(file_path))
         
         filesystem.write_file(self.get_local_path(file_path), new_data, start_offset)
         
@@ -212,11 +209,16 @@ class LocalPeer(Peer):
         
         if is_new_file:
             new_data = filesystem.read_file(file_path) # we have to read here in case there was an offset
-            file_msg = messages.NewFileAvailable(file_path, 
-                                                 is_directory,
-                                                 new_checksum,
-                                                 size,
-                                                 file_data=None)
+            file_model = FileModel(file_path, 
+                             is_directory,
+                             new_checksum,
+                             size,
+                             latest_version=1,
+                             data=None)
+            
+            self.db.add_file(file_model)
+            
+            file_msg = messages.NewFileAvailable(file_model)
             communication.send_message(file_msg, self.tracker) # let the tracker know about the new file
         else:
             file_msg = messages.FileChanged(file_path, new_checksum, new_data, start_offset)

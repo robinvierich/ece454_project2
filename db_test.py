@@ -2,7 +2,7 @@
 db_test.py - Test file for db.by
 """
 
-from db import TrackerDb, LocalPeerDb
+from db import TrackerDb
 import os
 import logging
 
@@ -38,8 +38,8 @@ def run():
 
 
     if failed:
-       print "Tests failed"
-       print msg
+        print "Tests failed"
+        print msg
 
 if __name__ == "__main__":
     run()
