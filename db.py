@@ -16,9 +16,9 @@ def wait_for_commit_queue(function):
 
     def wrapper(*args, **kwargs):
         db = args[0]
-        logging.debug(function.func_name + " - Waiting until the DB Commit queue is empty")
+        logging.info(function.func_name + " - Waiting until the DB Commit queue is empty")
         db.q.join()
-        logging.debug("Commit queue is now empty. Executing query")
+        logging.info("Commit queue is now empty. Executing query")
 
         return_value = function(*args, **kwargs)
         return return_value
@@ -103,8 +103,6 @@ class PeerDb(object):
         checksum = file_model.checksum
         last_ver_num = file_model.last_ver_num
         
-        logging.debug("Adding a new entry in Files table")
-        
         with self.connection:
             # We assume no directory trees and unique file names
             res = self.get_file_id(file_name)
@@ -125,17 +123,17 @@ class PeerDb(object):
     @wait_for_commit_queue        
     def add_file(self, file_model):      
         query = ("INSERT INTO Files " +
-                 "(FileName, IsDirectory, Size, GoldenChecksum, LastVersionNumber) " +
+                 "(FileName, IsDirectory, GoldenChecksum, Size, LastVersionNumber) " +
                  "VALUES (?, ?, ?, ?, ?)")
         
-        fileName = os.path.basename(file_model.file_path)
-        is_directory = file_model.is_directory
-        size = file_model.size
-        checksum = file_model.checksum
-        last_ver_num = file_model.last_ver_num
+        f = file_model
 
-        self.q.put((query, [fileName, str(is_directory), str(size),
-                            sqlite3.Binary(checksum), str(last_ver_num)]))
+        self.q.put((query, (f.path, 
+                            str(f.is_dir),
+                            sqlite3.Binary(f.checksum), 
+                            str(f.size),
+                            str(f.last_ver_num))
+                    ))
 
     # Delete everything from the files table and repopulate it with file_list
     @wait_for_commit_queue
