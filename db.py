@@ -6,6 +6,8 @@ import sqlite3
 import logging
 import Queue
 import threading
+import os.path
+from messages import FileModel
 
 def wait_for_commit_queue(function):
     """A decorator that waits for the commit queue to be empty, 
@@ -25,7 +27,7 @@ def wait_for_commit_queue(function):
 
 class PeerDb(object):
     def __init__(self, db_name):
-        logging.debug("Initializing Tables Common to LocalPeer and Tracker")
+        logging.debug("Initializing Tables Common to LocalPeer and Tracker")        
         self.db_name = db_name
         self.q = Queue.Queue()
         self.connection = None
@@ -42,26 +44,28 @@ class PeerDb(object):
             res = self.cur.fetchone()
             if res[0] == 0:
                 logging.debug("Creating the Files table")
-                self.q.put(("CREATE TABLE Files(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                self.cur.execute("CREATE TABLE Files(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                             "FileName TEXT, IsDirectory INT, " +
-                            "Size INT, GoldenChecksum BLOB, LastVersionNumber INT, " +
-                            "ParentId INT)", []))
-
+                            "GoldenChecksum BLOB, Size INT, LastVersionNumber INT, " +
+                            "ParentId INT)", [])
+                
+        with self.connection:
             self.cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' " +
                              "AND name='Version'")
             res = self.cur.fetchone()
             if res[0] == 0:
                 logging.debug("Creating the Version table")
-                self.q.put(("CREATE TABLE Version(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                self.cur.execute("CREATE TABLE Version(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                             "FileId INT, VersionNumber INT, " +
-                            "VersionName TEXT, FileSize INT, Checksum BLOB)", []))
-
+                            "VersionName TEXT, FileSize INT, Checksum BLOB)", [])
+                
+        with self.connection:
             self.cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' " +
                              "AND name='LocalPeerFiles'")
             res = self.cur.fetchone()
             if res[0] == 0:
                 logging.debug("Creating the LocalPeerFiles table")
-                self.q.put(("CREATE TABLE LocalPeerFiles(FileId INT)", []))
+                self.cur.execute("CREATE TABLE LocalPeerFiles(FileId INT)", [])
 
     @wait_for_commit_queue
     def list_files(self, path):
@@ -69,10 +73,25 @@ class PeerDb(object):
         logging.debug("Listing files")
         
         with self.connection:
-            query = ("SELECT * FROM FILES")
+#            query = ("SELECT Id, FilePath, IsDirectory, GoldenChecksum, Size, LastVersionNumber"+
+#                     "FROM Files")
+            query = "select * from Files"
             self.cur.execute(query)
-            res = self.cur.fetchall()            
-            return res
+            res = self.cur.fetchall()
+            file_model_list = [FileModel(*f) for f in res if f]
+            return file_model_list
+
+    @wait_for_commit_queue
+    def get_file(self, path):
+        with self.connection:
+            query = ("SELECT FileName, IsDirectory, GoldenChecksum, Size, LastVersionNumber "+ 
+                    "FROM Files WHERE FileName=?")
+            self.cur.execute(query, (path,))
+            res = self.cur.fetchall()
+            if res:
+                return FileModel(*res[0])
+            else:
+                return None
 
     # TODO add parents
     @wait_for_commit_queue
@@ -108,7 +127,8 @@ class PeerDb(object):
         query = ("INSERT INTO Files " +
                  "(FileName, IsDirectory, Size, GoldenChecksum, LastVersionNumber) " +
                  "VALUES (?, ?, ?, ?, ?)")
-        fileName = file_model.filename 
+        
+        fileName = os.path.basename(file_model.file_path)
         is_directory = file_model.is_directory
         size = file_model.size
         checksum = file_model.checksum
@@ -148,9 +168,13 @@ class PeerDb(object):
 
 class TrackerDb(PeerDb):    
     DB_FILE = "tracker_db.db"
-    def __init__(self):
+    def __init__(self, db_name=DB_FILE):
         logging.debug("Initializing Tracker Database")
-        PeerDb.__init__(self, TrackerDb.DB_FILE)
+        
+        if not db_name:
+            db_name = LocalPeerDb.DB_FILE
+        
+        PeerDb.__init__(self, db_name)
         self.create_tables()
     
     def create_tables(self):
@@ -160,19 +184,19 @@ class TrackerDb(PeerDb):
             res = self.cur.fetchone()
             if res[0] == 0:
                 logging.debug("Creating the Peers table")
-                self.q.put(("CREATE TABLE Peers(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                self.cur.execute("CREATE TABLE Peers(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                             "Name TEXT, Ip TEXT, Port INT, " +
                             "State INT, MaxFileSize INT, MaxFileSysSize INT, " +
-                            "CurrFileSysSize INT)", []))
+                            "CurrFileSysSize INT)", [])
 
             self.cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' " +
                              "AND name='PeerFile'")
             res = self.cur.fetchone()
             if res[0] == 0:
                 logging.debug("Creating the PeerFile table")
-                self.q.put(("CREATE TABLE PeerFile(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                self.cur.execute("CREATE TABLE PeerFile(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                             "FileId INT, PeerId INT, " +
-                            "Checksum BLOB, PendingUpdate INT)", []))
+                            "Checksum BLOB, PendingUpdate INT)", [])
 
             self.cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' " +
                              "AND name='PeerExcludedFiles'")
@@ -291,9 +315,12 @@ class TrackerDb(PeerDb):
                 
 class LocalPeerDb(PeerDb):
     DB_FILE = "peer_db.db"
-    def __init__(self):
+    def __init__(self, db_name=DB_FILE):
         logging.debug("Initializing Local Peer Database")
-        PeerDb.__init__(self, LocalPeerDb.DB_FILE)
+        
+        if not db_name:
+            db_name = LocalPeerDb.DB_FILE         
+        PeerDb.__init__(self, db_name)
         self.create_tables()
 
     def create_tables(self):
