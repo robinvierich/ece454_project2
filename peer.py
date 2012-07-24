@@ -59,11 +59,13 @@ class LocalPeer(Peer):
     PASSWORD = '12345'
     MAX_FILE_SIZE = 100000000
     MAX_FILE_SYS_SIZE = 1000000000
-    def __init__(self, hostname=Peer.HOSTNAME, port=Peer.PORT):
+    def __init__(self, hostname=Peer.HOSTNAME, port=Peer.PORT, root_path=""):
         super(LocalPeer, self).__init__(hostname, port)        
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._acceptorThread = AcceptorThread(self)
         self.start_server()
+
+        self.root_path = root_path
 
         if type(self) == LocalPeer: # exclude sub-classes
             self.tracker = Peer(tracker.Tracker.HOSTNAME, tracker.Tracker.PORT)
@@ -150,7 +152,7 @@ class LocalPeer(Peer):
             if response == None:
                 return None
         
-            filesystem.write_file(file_path, response.file_data)
+            filesystem.write_file(self.get_local_path(file_path), response.file_data)
             data = filesystem.read_file(file_path)
             new_checksum = checksum.calc_checksum(data)
         
@@ -161,6 +163,8 @@ class LocalPeer(Peer):
         
         raise Exception("download_file failed - max attempts reached")
     
+    def get_local_path(self, file_path):
+        return os.path.join(self.root_path, file_path)
     
     # File Operations
     def is_tracker_online(self):
@@ -174,7 +178,7 @@ class LocalPeer(Peer):
     
     @check_tracker_online
     def read(self, file_path, start_offset=None, length=-1):
-        file_data = filesystem.read_file(file_path, start_offset, length)
+        file_data = filesystem.read_file(self.root_path + file_path, start_offset, length)
         if file_data != None:
             return file_data
         
@@ -198,7 +202,7 @@ class LocalPeer(Peer):
     def write(self, file_path, new_data, start_offset=None):
         is_new_file = bool(self.db.get_file(file_path))
         
-        filesystem.write_file(file_path, new_data, start_offset)
+        filesystem.write_file(self.get_local_path(file_path), new_data, start_offset)
         
         
         data = filesystem.read_file(file_path)
@@ -386,20 +390,20 @@ class LocalPeer(Peer):
         pass
     
     def handle_FILE_CHANGED(self, client_socket, msg):        
-        path = msg.file_path
+        file_path = msg.file_path
         new_data = msg.new_data
         remote_checksum = msg.new_checksum
         start_offset = msg.start_offset
         
-        if not os.path.exists(path):
+        if not os.path.exists(file_path):
             return
-        filesystem.write_file(path, new_data, start_offset)
+        filesystem.write_file(self.get_local_path(file_path), new_data, start_offset)
         
-        new_data = filesystem.read_file(path)
+        new_data = filesystem.read_file(file_path)
         new_checksum = checksum.calc_checksum(new_data)
         
         if (new_checksum != remote_checksum):
-            communication.send_message(messages.FileDownloadRequest(path), client_socket)
+            communication.send_message(messages.FileDownloadRequest(file_path), client_socket)
     
     def handle_NEW_FILE_AVAILABLE(self, client_socket, msg):
         self._download_file(msg.file_path)

@@ -76,8 +76,13 @@ class Tracker(LocalPeer):
     def handle_PEER_LIST_REQUEST(self, client_socket, peer_list_request):
         logging.debug("Handling the peer list request")
         file_path = peer_list_request.file_path
-                    
-        peer_list = self.db.get_peer_list(file_path)        
+        
+        peer_list = []            
+        try:
+            peer_list = self.db.get_peer_list(file_path)
+        except RuntimeError, e:
+            logging.debug("couldn't get peer list " + str(e))
+    
         logging.debug("Sending the peer list:\n" + str(peer_list))
 
         response = messages.PeerList(peer_list)

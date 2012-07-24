@@ -49,10 +49,9 @@ def run_tests():
     tracker = Tracker()
     
     dfs.init_local_peer(Tracker.HOSTNAME, Tracker.PORT)
+    dfs.local_peer.root_path="./peer1/"
     
-    #peer2 = LocalPeer(port = LocalPeer.PORT + 1)
-    
-    #test_connect()
+    peer2 = LocalPeer(port = LocalPeer.PORT + 1, root_path="./peer2/")
     
     test_write()
 
