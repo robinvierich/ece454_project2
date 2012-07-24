@@ -1,6 +1,9 @@
 from tracker import Tracker
 from peer import LocalPeer
+
+
 import dfs
+import logging
 
 import os.path
 
@@ -38,13 +41,16 @@ def test_write(testfile_path = "./dfs_test.txt",
     
 
 def run_tests():
+    logging.basicConfig(level=logging.DEBUG, 
+                        format="%(threadName)s %(funcName)s: %(message)s")
+    
     print "DFS Test"
     print "Starting Tracker"
     tracker = Tracker()
     
     dfs.init_local_peer(Tracker.HOSTNAME, Tracker.PORT)
     
-    peer2 = LocalPeer(port = LocalPeer.PORT + 1)
+    #peer2 = LocalPeer(port = LocalPeer.PORT + 1)
     
     #test_connect()
     

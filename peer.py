@@ -9,7 +9,7 @@ import logging
 import random
 
 import communication
-from messages import MessageType
+from messages import MessageType, FileModel
 import messages
 import checksum
 import filesystem
@@ -103,6 +103,15 @@ class LocalPeer(Peer):
         else:
             logging.debug("Connection to tracker unsuccessful")
         
+        
+        list_request = messages.ListRequest(dir_path=None)
+        communication.send_message(list_request, self.tracker)
+        
+        list_response = communication.recv_message(tracker)
+        
+        for f in list_response.file_list:
+            self.db.add_or_update_file(f)
+        
         return successful
 
     def disconnect(self,check_for_unreplicated_files=True):
@@ -147,6 +156,14 @@ class LocalPeer(Peer):
     
     
     # File Operations
+    def is_tracker_online(self):
+        try:
+            communication.connect_to_peer(self.tracker)
+            return True
+        except socket.error, err:
+            logging.error("Couldn't connect to tracker" + err)
+            return False
+        
     
     @check_tracker_online
     def read(self, file_path, start_offset=None, length=-1):
@@ -176,12 +193,19 @@ class LocalPeer(Peer):
         
         filesystem.write_file(file_path, new_data, start_offset)
         
+        
         data = filesystem.read_file(file_path)
+        is_directory = False
         new_checksum = checksum.calc_checksum(data)
+        size = len(data)
         
         if is_new_file:
             new_data = filesystem.read_file(file_path) # we have to read here in case there was an offset
-            file_msg = messages.NewFileAvailable(file_path, new_checksum, new_data)
+            file_msg = messages.NewFileAvailable(file_path, 
+                                                 is_directory,
+                                                 new_checksum,
+                                                 size,
+                                                 file_data=None)
             communication.send_message(file_msg, self.tracker) # let the tracker know about the new file
         else:
             file_msg = messages.FileChanged(file_path, new_checksum, new_data, start_offset)
@@ -269,7 +293,9 @@ class LocalPeer(Peer):
         isDir = 1 if os.path.isdir(path) else 0
         size = os.path.getsize(path)
         cs = checksum.calc_file_checksum(path)
-        self.db.add_file(path, isDir, size, cs, 0)
+        
+        file_model = FileModel(path, isDir, size, cs, 0)
+        self.db.add_or_update_file(file_model)
     
     def add_new_file(self, path):        
         # TODO
@@ -403,7 +429,8 @@ class LocalPeer(Peer):
         file_list = self.db.list_files(msg.dir_path)
         response = messages.Message(messages.MessageType.LIST)
         response.file_list = file_list
-        communication.send_message(response, client_socket)
+        communication.send_message(response, socket=client_socket)
+        
     def handle_LIST(self, client_socket, msg):
         pass
     def handle_ARCHIVE_REQUEST(self, client_socket, msg):
@@ -414,6 +441,7 @@ class LocalPeer(Peer):
 class AcceptorThread(threading.Thread):
     def __init__(self, peer):
         super(AcceptorThread, self).__init__()
+        self.name = "Acceptor"
         self._peer = peer
 
         self.alive = threading.Event()
@@ -438,15 +466,17 @@ class AcceptorThread(threading.Thread):
 class HandlerThread(threading.Thread):
     def __init__(self, peer, client_socket):            
         super(HandlerThread, self).__init__()
+        self.name = type(peer).__name__ + "_Handler"
         self._peer = peer
-        self._client_socket = client_socket
+        self._client_socket = client_socket    
     
+        
     def run(self):
         logging.debug("Spawned a HandlerThread")
         received_msg = communication.recv_message(socket=self._client_socket)
 
         msg_type = received_msg.msg_type
-        logging.debug("Received message of type " + str(msg_type))
+        logging.debug("Received " + str(received_msg))
         
         handler_method_index = self._peer.get_handler_method_index()
         

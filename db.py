@@ -7,6 +7,22 @@ import logging
 import Queue
 import threading
 
+def wait_for_commit_queue(function):
+    """A decorator that waits for the commit queue to be empty, 
+        then calls the function
+        """
+
+    def wrapper(*args, **kwargs):
+        db = args[0]
+        logging.debug(function.func_name + " - Waiting until the DB Commit queue is empty")
+        db.q.join()
+        logging.debug("Commit queue is now empty. Executing query")
+
+        return_value = function(*args, **kwargs)
+        return return_value
+        
+    return wrapper
+
 class PeerDb(object):
     def __init__(self, db_name):
         logging.debug("Initializing Tables Common to LocalPeer and Tracker")
@@ -47,12 +63,11 @@ class PeerDb(object):
                 logging.debug("Creating the LocalPeerFiles table")
                 self.q.put(("CREATE TABLE LocalPeerFiles(FileId INT)", []))
 
+    @wait_for_commit_queue
     def list_files(self, path):
         # for now, this just lists all files that the tracker knows about
         logging.debug("Listing files")
-        logging.debug("Waiting until the DB Commit queue is empty")
-        self.q.join()
-        logging.debug("The DB Commit queue is now empty. Gonna execute the query now.")
+        
         with self.connection:
             query = ("SELECT * FROM FILES")
             self.cur.execute(query)
@@ -60,25 +75,50 @@ class PeerDb(object):
             return res
 
     # TODO add parents
-    def add_file(self, fileName, isDirectory, size, checksum, lastVerNum):
+    @wait_for_commit_queue
+    def add_or_update_file(self, file_model):
+        
+        fileName = file_model.filename 
+        is_directory = file_model.is_directory
+        size = file_model.size
+        checksum = file_model.checksum
+        last_ver_num = file_model.last_ver_num
+        
         logging.debug("Adding a new entry in Files table")
-        logging.debug("Waiting until the DB Commit queue is empty")
-        self.q.join()
-        logging.debug("The DB Commit queue is now empty. Gonna execute the query now.")
+        
         with self.connection:
-            query = ("INSERT INTO Files " +
-                     "(FileName, IsDirectory, Size, GoldenChecksum, LastVersionNumber) " +
-                     "VALUES (?, ?, ?, ?, ?)")
+            query = ("""
+begin tran
+   update table with (serializable) set ...
+   where kay = @key
 
-            self.q.put((query, [fileName, str(isDirectory), str(size),
-                                sqlite3.Binary(checksum), str(lastVerNum)]))
+   if @@rowcount = 0
+   begin
+          insert table (key, ...) values (@key,..)
+   end
+commit tran""")
+            
+        self.q.put((query, [fileName, str(is_directory), str(size),
+                            sqlite3.Binary(checksum), str(last_ver_num)]))
+        
+    @wait_for_commit_queue        
+    def add_file(self, file_model):      
+        query = ("INSERT INTO Files " +
+                 "(FileName, IsDirectory, Size, GoldenChecksum, LastVersionNumber) " +
+                 "VALUES (?, ?, ?, ?, ?)")
+        fileName = file_model.filename 
+        is_directory = file_model.is_directory
+        size = file_model.size
+        checksum = file_model.checksum
+        last_ver_num = file_model.last_ver_num
+
+        self.q.put((query, [fileName, str(is_directory), str(size),
+                            sqlite3.Binary(checksum), str(last_ver_num)]))
 
     # Delete everything from the files table and repopulate it with file_list
+    @wait_for_commit_queue
     def clear_files_and_add_all(self, file_list):
         logging.debug("Adding a files into the File table")
-        logging.debug("Waiting until the DB Commit queue is empty")
-        self.q.join()
-        logging.debug("The DB Commit queue is now empty. Gonna execute the query now.")
         with self.connection:
             query = ("DELETE FROM Files")
             self.q.put((query, []))
@@ -121,12 +161,10 @@ class TrackerDb(PeerDb):
                 logging.debug("Creating the PeerExcludedFiles table")
                 self.q.put(("CREATE TABLE PeerExcludedFiles(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                             "PeerId INT, FileId INT, FileNamePattern TEXT)", []))
-                
+    @wait_for_commit_queue            
     def add_peer(self, ip, port, state, maxFileSize, maxFileSysSize, currFileSysSize, name=""):
         logging.debug("Adding a new entry in Peers table")
-        logging.debug("Waiting until the DB Commit queue is empty")
-        self.q.join()
-        logging.debug("The DB Commit queue is now empty. Gonna execute the query now.")
+        
         # TODO Check if the peer with the same Port and IP is already there
         # in which case just updated its state?
         query = ("INSERT INTO Peers " +
@@ -136,10 +174,8 @@ class TrackerDb(PeerDb):
         self.q.put((query, [name, ip, port, str(state), str(maxFileSize),
                             str(maxFileSysSize), str(currFileSysSize)]), [])
 
+    @wait_for_commit_queue
     def get_peer_state(self, ip):
-        logging.debug("Waiting until the DB Commit queue is empty")
-        self.q.join()
-        logging.debug("The DB Commit queue is now empty. Gonna execute the query now.")
         with self.connection:
             query = ("SELECT State FROM Peers " +
                  "WHERE ip='%s'" % ip)
@@ -147,11 +183,9 @@ class TrackerDb(PeerDb):
             res = self.cur.fetchone()
             
             return res[0]
-            
+        
+    @wait_for_commit_queue        
     def get_peer_list(self, file_path=None):
-        logging.debug("Waiting until the DB Commit queue is empty")
-        self.q.join()
-        logging.debug("The DB Commit queue is now empty. Gonna execute the query now.")
         with self.connection:
             if file_path is None:
                 # just give them the list of all peers
@@ -202,17 +236,24 @@ class LocalPeerDb(PeerDb):
                             "AUTOINCREMENT, FileId INT, FileNamePattern TEXT)", []))
 
     # delete everything in the peers table and insert
+    @wait_for_commit_queue
     def clear_peers_and_insert(self, peers_list):
-        logging.debug("Waiting until the DB Commit queue is empty")
-        self.q.join()
-        logging.debug("The DB Commit queue is now empty. Gonna execute the query now.")
         query = "DELETE FROM Peers"
         self.q.put((query, []))
         query = "INSERT INTO Peers VALUES (?, ?, ?, ?, ?)"
         self.q.put((query, peers_list))
-    
+        
+    @wait_for_commit_queue
     def get_peer_list(self):
-        pass
+        with self.connection:
+            # just give them the list of all peers
+            query = "SELECT Id, Name, Ip, Port, State FROM Peers"
+            
+            self.cur.execute(query)
+            res = self.cur.fetchall()
+            if res is None:
+                raise RuntimeError("Cannot get a peers list (LocalPeerDb)")
+            return res
 
 class DbThread(threading.Thread):
     def __init__(self, db):            
@@ -233,8 +274,8 @@ class DbThread(threading.Thread):
             with self.db.connection:
                 logging.debug("Performing a db statement: " + item[0] + " " + str(item[1]))
                 try:
-                   tmp = item[1][0][0]
-                   self.db.cur.executemany(item[0], item[1])
+                    tmp = item[1][0][0]
+                    self.db.cur.executemany(item[0], item[1])
                 except:
                     self.db.cur.execute(item[0], item[1])
                 self.db.connection.commit()

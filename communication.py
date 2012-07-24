@@ -16,24 +16,25 @@ MSGLEN_STRUCT_FORMAT = "<L"
 
 peer_socket_index = {}
 
-def _create_peer_socket(topeer):
-    peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    peer_socket.connect((topeer.hostname, topeer.port))
-    # TODO Handle refused connections
-    return peer_socket 
+def connect_to_peer(peer):
+    '''
+    returns a socket
+    '''
+    peer_socket = socket.create_connection((peer.hostname, peer.port))# tries ipv4 then ipv6 (TCP/IP)
+    return peer_socket
 
 
 def send_message(msg, topeer=None, socket=None):
-    logging.debug("Sending a message with type " + str(msg.msg_type))
+    logging.debug("Sending " + str(msg))
     if socket == None:
-        socket = _create_peer_socket(topeer)
+        socket = connect_to_peer(topeer)
         peer_socket_index[topeer] = socket
     
     serial_msg = pickle.dumps(msg, protocol=pickle.HIGHEST_PROTOCOL)
     msglen_header = struct.pack(MSGLEN_STRUCT_FORMAT, len(serial_msg))
     
     try:
-        sent = socket.sendall(msglen_header + serial_msg)
+        socket.sendall(msglen_header + serial_msg)
     except IOError as e:
         raise RuntimeError("cannot send msg. " + str(e))
 
@@ -42,6 +43,7 @@ def recv_bytes(socket, byteCount):
     while len(msg) < byteCount:
         data = socket.recv(byteCount - len(msg))
         if data == '':
+            logging.error("socket connection broken")
             raise RuntimeError("socket connection broken")
         msg = msg + data
     return msg
@@ -53,8 +55,8 @@ def recv_message(frompeer=None, socket=None):
     if socket == None:
         socket = peer_socket_index.get(frompeer)
         if socket == None:
-            socket = _create_peer_socket(frompeer)
-            peer_socket_index[frompeer] = socket    
+            socket = connect_to_peer(frompeer)
+            peer_socket_index[frompeer] = socket
       
     msg = ''
     msglen_header = recv_bytes(socket, 4)
@@ -70,5 +72,5 @@ def recv_message(frompeer=None, socket=None):
             raise RuntimeError("socket connection broken")
         msg += chunk
     new_msg = pickle.loads(msg)
-    logging.debug("Received a message with type " + str(new_msg.msg_type))
+    logging.debug("Received " + str(new_msg))
     return new_msg

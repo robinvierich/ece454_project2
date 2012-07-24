@@ -37,9 +37,21 @@ class MessageType(object):
     ARCHIVE_RESPONSE = 22
 
 
+class FileModel(object):
+    def __init__(self, path, is_dir, checksum, size, data=None):
+        self.path = path
+        self.is_dir = is_dir
+        self.checksum = checksum
+        self.size = size
+        self.data = data
+        
+        
 class Message(object):    
     def __init__(self, msg_type):
         self.msg_type = msg_type
+    
+    def __str__(self):
+        return type(self).__name__
 
 class ConnectRequest(Message):
     def __init__(self, pwd, port, maxFileSize, maxFileSysSize, currFileSysSize):
@@ -118,11 +130,9 @@ class ValidateChecksumResponse(Message):
 
 
 class NewFileAvailable(Message):
-    def __init__(self, file_path, file_checksum, file_data):
+    def __init__(self, file_model):
         super(NewFileAvailable, self).__init__(MessageType.NEW_FILE_AVAILABLE)
-        self.file_path = file_path    
-        self.file_checksum = file_checksum
-        self.file_data = file_data
+        self.file_model = file_model
     
 # doc says (file_id), changed to (file_path)
 class DeleteRequest(Message):
@@ -188,6 +198,4 @@ class ArchiveResponse(Message):
         super(ArchiveResponse, self).__init__(MessageType.ARCHIVE_RESPONSE)
         self.file_path = file_path
         self.archived = archived
-        
-
         

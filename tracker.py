@@ -82,10 +82,26 @@ class Tracker(LocalPeer):
         communication.send_message(response, socket=client_socket)
     
     @check_connected
-    def handle_NEW_FILE_AVAILABLE(self, client_socket, msg):
-        # TODO: add file to DB + choose peers where it should be replicated
+    def handle_NEW_FILE_AVAILABLE(self, client_socket, new_file_available_msg):
+        # TODO: peers where file should be replicated
+        f = new_file_available_msg.file_model
         
-        pass
+        file_path = f.file_path
+        is_directory = f.is_directory
+        checksum = f.checksum
+        size = f.size
+        latest_version = f.latest_version
+        
+        self.db.add_file(file_path, is_directory, size, checksum, latest_version)
+    
+    @check_connected
+    def handle_LIST_REQUEST(self, client_socket, list_request):
+        file_list = self.db.list_files(list_request.directory_path)
+        
+        
+        
+        list_response = messages.List(file_list)
+        communication.send_message(list_response, socket=client_socket)
     
     @check_connected
     def handle_VALIDATE_CHECKSUM_REQUEST(self, client_socket, msg):
