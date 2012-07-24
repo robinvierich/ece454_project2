@@ -347,7 +347,11 @@ class LocalPeer(Peer):
         filesystem.move(src_path, dest_path)
     
     def handle_LIST_REQUEST(self, client_socket, msg):
-        pass
+        logging.debug("Handling list request")        
+        file_list = self.db.list_files(msg.dir_path)
+        response = messages.Message(messages.MessageType.LIST)
+        response.file_list = file_list
+        communication.send_message(response, client_socket)
     def handle_LIST(self, client_socket, msg):
         pass
     def handle_ARCHIVE_REQUEST(self, client_socket, msg):
