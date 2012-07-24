@@ -84,7 +84,7 @@ class Tracker(LocalPeer):
         
         peer_list = []
         try:
-            peer_list = self.db.get_peer_list(file_path)
+            peer_list = self.db.get_peers_with_file(file_path)
         except RuntimeError, e:
             logging.debug("couldn't get peer list: " + str(e))
     
@@ -142,14 +142,22 @@ class Tracker(LocalPeer):
         
         logging.info("Handling Archive Request")
         
-        
         f = self.db.get_file(file_path)
         if not f:
             communication.send_message(response, socket=client_socket)
             return
         
         f.latest_version += 1
-        communication.send_message(response, socket=client_socket)
-    
+        self.db.add_or_update_file(f)
         
+        response.archived = True
+        communication.send_message(response, socket=client_socket)
+                
+        peers_list = self.db.get_peers_with_file(file_path)
+        
+        # notify all peers that have the file about the new version
+        for peer in peers_list:
+            file_archived_msg = messages.FileArchived(f.path, f.latest_version)
+            communication.send_message(file_archived_msg, peer)
+            
     

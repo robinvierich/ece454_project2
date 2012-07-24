@@ -1,6 +1,6 @@
 import hashlib
 
-def calc_checksum(file_data):
+def calc_checksum(file_data):    
     return hashlib.sha1(file_data).digest()
     
 def calc_file_checksum(filePath, blocksize=65536):

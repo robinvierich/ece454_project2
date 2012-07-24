@@ -236,7 +236,7 @@ class TrackerDb(PeerDb):
             return res[0]
         
     @wait_for_commit_queue        
-    def get_peer_list(self, file_path=None):
+    def get_peers_with_file(self, file_path=None):
         with self.connection:
             if file_path is None:
                 # just give them the list of all peers
@@ -372,7 +372,7 @@ class LocalPeerDb(PeerDb):
             self.q.put((query, (p.name, p.hostname, p.port, p.state)))
         
     @wait_for_commit_queue
-    def get_peer_list(self):
+    def get_peers_with_file(self):
         with self.connection:
             # just give them the list of all peers
             query = "SELECT Id, Name, Ip, Port, State FROM Peers"

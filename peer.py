@@ -190,7 +190,7 @@ class LocalPeer(Peer):
         if file_data != None:
             return file_data
         
-        peer_list = self.db.get_peer_list()
+        peer_list = self.db.get_peers_with_file()
         
         self._download_file(file_path, peer_list)
         
@@ -365,6 +365,7 @@ class LocalPeer(Peer):
                 
                 MessageType.ARCHIVE_REQUEST : self.handle_ARCHIVE_REQUEST,
                 MessageType.ARCHIVE_RESPONSE : self.handle_ARCHIVE_RESPONSE,
+                MessageType.FILE_ARCHIVED : self.handle_FILE_ARCHIVED,
                 }
     # not used - done through blocking in connect()
     def handle_CONNECT_REQUEST(self, client_socket, msg):
@@ -414,12 +415,12 @@ class LocalPeer(Peer):
             self._backlog.append((new_file_available_msg, self.tracker))
 
     
-    def handle_FILE_CHANGED(self, client_socket, msg):        
-        file_path = msg.file_path
-        new_data = msg.new_data
-        remote_checksum = msg.new_checksum
-        start_offset = msg.start_offset
-        latest_version = msg.latest_version
+    def handle_FILE_CHANGED(self, client_socket, file_changed_msg):        
+        file_path = file_changed_msg.file_path
+        new_data = file_changed_msg.new_data
+        remote_checksum = file_changed_msg.new_checksum
+        start_offset = file_changed_msg.start_offset
+        latest_version = file_changed_msg.latest_version
         
         local_path = filesystem.get_local_path(self, file_path, latest_version)
         
@@ -477,6 +478,17 @@ class LocalPeer(Peer):
         pass
     def handle_ARCHIVE_RESPONSE(self, client_socket, msg):
         pass
+    
+    def handle_FILE_ARCHIVED(self, client_socket, file_archived_msg):
+        file_path = file_archived_msg.file_path
+        new_version = file_archived_msg.new_version
+        
+        f = self.db.get_file(file_path)
+        if not f:
+            return
+        
+        f.latest_version = new_version
+        self.db.add_or_update_file(f)
     
 class AcceptorThread(threading.Thread):
     def __init__(self, peer):

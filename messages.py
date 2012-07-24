@@ -35,6 +35,7 @@ class MessageType(object):
     
     ARCHIVE_REQUEST = 21
     ARCHIVE_RESPONSE = 22
+    FILE_ARCHIVED = 23
 
 
 class FileModel(object):
@@ -118,6 +119,12 @@ class FileChanged(Message):
         self.new_data = new_data
         self.start_offset = start_offset
         self.latest_version = latest_version
+
+class FileArchived(Message):
+    def __init__(self, file_path, new_version):
+        super(FileArchived, self).__init__(MessageType.FILE_ARCHIVED)
+        self.file_path = file_path
+        self.new_version = new_version
 
 class ValidateChecksumRequest(Message):
     def __init__(self, file_path, file_checksum):

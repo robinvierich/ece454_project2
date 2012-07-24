@@ -71,6 +71,7 @@ def recv_message(frompeer=None, socket=None):
         if chunk == '':
             raise RuntimeError("socket connection broken")
         msg += chunk
+    
     new_msg = pickle.loads(msg)
     logging.debug("Received " + str(new_msg))
     return new_msg
