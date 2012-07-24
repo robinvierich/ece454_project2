@@ -44,10 +44,10 @@ class PeerDb(object):
             res = self.cur.fetchone()
             if res[0] == 0:
                 logging.debug("Creating the Files table")
-                self.q.put(("CREATE TABLE Files(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                self.cur.execute("CREATE TABLE Files(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                             "FileName TEXT, IsDirectory INT, " +
                             "GoldenChecksum BLOB, Size INT, LastVersionNumber INT, " +
-                            "ParentId INT)", []))
+                            "ParentId INT)", [])
                 
         with self.connection:
             self.cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' " +
@@ -55,9 +55,9 @@ class PeerDb(object):
             res = self.cur.fetchone()
             if res[0] == 0:
                 logging.debug("Creating the Version table")
-                self.q.put(("CREATE TABLE Version(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                self.cur.execute("CREATE TABLE Version(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                             "FileId INT, VersionNumber INT, " +
-                            "VersionName TEXT, FileSize INT, Checksum BLOB)", []))
+                            "VersionName TEXT, FileSize INT, Checksum BLOB)", [])
                 
         with self.connection:
             self.cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' " +
@@ -65,7 +65,7 @@ class PeerDb(object):
             res = self.cur.fetchone()
             if res[0] == 0:
                 logging.debug("Creating the LocalPeerFiles table")
-                self.q.put(("CREATE TABLE LocalPeerFiles(FileId INT)", []))
+                self.cur.execute("CREATE TABLE LocalPeerFiles(FileId INT)", [])
 
     @wait_for_commit_queue
     def list_files(self, path):
@@ -84,11 +84,14 @@ class PeerDb(object):
     @wait_for_commit_queue
     def get_file(self, path):
         with self.connection:
-            query = ("SELECT FileName, IsDirectory, GoldenChecksum, Size, LastVersionNumber"+ 
-                     "FROM Files WHERE Path=?")
+            query = ("SELECT FileName, IsDirectory, GoldenChecksum, Size, LastVersionNumber "+ 
+                    "FROM Files WHERE FileName=?")
             self.cur.execute(query, (path,))
             res = self.cur.fetchall()
-            return FileModel(*res[0])
+            if res:
+                return FileModel(*res[0])
+            else:
+                return None
 
     # TODO add parents
     @wait_for_commit_queue
@@ -156,19 +159,19 @@ class TrackerDb(PeerDb):
             res = self.cur.fetchone()
             if res[0] == 0:
                 logging.debug("Creating the Peers table")
-                self.q.put(("CREATE TABLE Peers(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                self.cur.execute("CREATE TABLE Peers(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                             "Name TEXT, Ip TEXT, Port INT, " +
                             "State INT, MaxFileSize INT, MaxFileSysSize INT, " +
-                            "CurrFileSysSize INT)", []))
+                            "CurrFileSysSize INT)", [])
 
             self.cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' " +
                              "AND name='PeerFile'")
             res = self.cur.fetchone()
             if res[0] == 0:
                 logging.debug("Creating the PeerFile table")
-                self.q.put(("CREATE TABLE PeerFile(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                self.cur.execute("CREATE TABLE PeerFile(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                             "FileId INT, PeerId INT, " +
-                            "Checksum BLOB, PendingUpdate INT)", []))
+                            "Checksum BLOB, PendingUpdate INT)", [])
 
             self.cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' " +
                              "AND name='PeerExcludedFiles'")
