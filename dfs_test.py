@@ -42,7 +42,7 @@ def test_write(testfile_path = "./dfs_test.txt",
 
 def run_tests():
     logging.basicConfig(level=logging.DEBUG, 
-                        format="%(threadName)s %(funcName)s: %(message)s")
+                        format="%(message)s : %(funcName)s() %(threadName)s ")
     
     print "DFS Test"
     print "Starting Tracker"

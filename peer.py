@@ -6,7 +6,6 @@ import socket
 import threading
 import os.path
 import logging
-import random
 
 import communication
 from messages import MessageType, FileModel
@@ -14,9 +13,7 @@ import messages
 import checksum
 import filesystem
 import tracker
-from db import PeerDb, LocalPeerDb, TrackerDb
-
-import pdb
+from db import LocalPeerDb
 
 class PeerState(object):
     ONLINE = 1
@@ -26,10 +23,14 @@ class PeerState(object):
 class Peer(object):
     HOSTNAME = "localhost"
     PORT = 11111
+    NAME = "Peer"
     
-    def __init__(self, hostname=HOSTNAME, port=PORT):
+    def __init__(self, hostname=HOSTNAME, port=PORT, name=NAME, state=PeerState.OFFLINE):
         self.hostname = hostname
         self.port = port
+        self.name = name
+        self.state = state
+        
 
 def check_tracker_online(function):
     """A decorator that checks if the tracker is online
@@ -64,14 +65,16 @@ class LocalPeer(Peer):
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._acceptorThread = AcceptorThread(self)
         self.start_server()
-
+        
+        self._backlog = []
+        
         self.root_path = root_path
+        
 
         if type(self) == LocalPeer: # exclude sub-classes
             self.tracker = Peer(tracker.Tracker.HOSTNAME, tracker.Tracker.PORT)
             self.db = LocalPeerDb(db_name)
             self.connect(LocalPeer.PASSWORD)            
-            self.state = PeerState.OFFLINE
 
     def start_server(self):        
         connected = False
@@ -169,7 +172,7 @@ class LocalPeer(Peer):
     
     @check_tracker_online
     def read(self, file_path, start_offset=None, length=-1):
-        file_data = filesystem.read_file(self.root_path + file_path, start_offset, length)
+        file_data = filesystem.read_file(self.get_local_path(file_path), start_offset, length)
         if file_data != None:
             return file_data
         
@@ -191,7 +194,7 @@ class LocalPeer(Peer):
     
     @check_tracker_online
     def write(self, file_path, new_data, start_offset=None):
-        is_new_file = bool(self.db.get_file(file_path))
+        is_new_file = not bool(self.db.get_file(file_path))
         
         filesystem.write_file(self.get_local_path(file_path), new_data, start_offset)
         
@@ -203,11 +206,16 @@ class LocalPeer(Peer):
         
         if is_new_file:
             new_data = filesystem.read_file(file_path) # we have to read here in case there was an offset
-            file_msg = messages.NewFileAvailable(file_path, 
-                                                 is_directory,
-                                                 new_checksum,
-                                                 size,
-                                                 file_data=None)
+            file_model = FileModel(file_path, 
+                             is_directory,
+                             new_checksum,
+                             size,
+                             latest_version=1,
+                             data=None)
+            
+            self.db.add_file(file_model)
+            
+            file_msg = messages.NewFileAvailable(file_model)
             communication.send_message(file_msg, self.tracker) # let the tracker know about the new file
         else:
             file_msg = messages.FileChanged(file_path, new_checksum, new_data, start_offset)
@@ -368,17 +376,24 @@ class LocalPeer(Peer):
     def handle_FILE_DOWNLOAD_DECLINE(self, client_socket, msg):
         pass
     
-    def handle_FILE_DATA(self, client_socket, msg):
-        
+    def handle_FILE_DATA(self, client_socket, file_data_msg):
         # save file
+        f = file_data_msg.file_model
+        start_offset = file_data_msg.start_offset
+        
+        filesystem.write_file(f.path, f.data, start_offset)
         
         # add file to db
+        self.db.add_or_update_file(f)
         
-        # send new file available to tracker
-        # or 
-        # record in backlog if tracker offline
+        file_model = FileModel(f.path, f.is_dir, f.checksum, f.size, f.latest_version, f.data)
+        new_file_available_msg = messages.NewFileAvailable(file_model)
         
-        pass
+        if self.is_tracker_online():
+            communication.send_message(new_file_available_msg, self.tracker)
+        else:
+            self.backlog.append((new_file_available_msg, self.tracker))
+
     
     def handle_FILE_CHANGED(self, client_socket, msg):        
         file_path = msg.file_path
