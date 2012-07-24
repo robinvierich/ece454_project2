@@ -6,6 +6,8 @@ import sqlite3
 import logging
 import Queue
 import threading
+import os.path
+from messages import FileModel
 
 def wait_for_commit_queue(function):
     """A decorator that waits for the commit queue to be empty, 
@@ -44,9 +46,10 @@ class PeerDb(object):
                 logging.debug("Creating the Files table")
                 self.q.put(("CREATE TABLE Files(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                             "FileName TEXT, IsDirectory INT, " +
-                            "Size INT, GoldenChecksum BLOB, LastVersionNumber INT, " +
+                            "GoldenChecksum BLOB, Size INT, LastVersionNumber INT, " +
                             "ParentId INT)", []))
-
+                
+        with self.connection:
             self.cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' " +
                              "AND name='Version'")
             res = self.cur.fetchone()
@@ -55,7 +58,8 @@ class PeerDb(object):
                 self.q.put(("CREATE TABLE Version(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                             "FileId INT, VersionNumber INT, " +
                             "VersionName TEXT, FileSize INT, Checksum BLOB)", []))
-
+                
+        with self.connection:
             self.cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' " +
                              "AND name='LocalPeerFiles'")
             res = self.cur.fetchone()
@@ -69,44 +73,56 @@ class PeerDb(object):
         logging.debug("Listing files")
         
         with self.connection:
-            query = ("SELECT * FROM FILES")
+#            query = ("SELECT Id, FilePath, IsDirectory, GoldenChecksum, Size, LastVersionNumber"+
+#                     "FROM Files")
+            query = "select * from Files"
             self.cur.execute(query)
-            res = self.cur.fetchall()            
-            return res
+            res = self.cur.fetchall()
+            file_model_list = [FileModel(*f) for f in res if f]
+            return file_model_list
+
+    @wait_for_commit_queue
+    def get_file(self, path):
+        with self.connection:
+            query = ("SELECT FileName, IsDirectory, GoldenChecksum, Size, LastVersionNumber"+ 
+                     "FROM Files WHERE Path=?")
+            self.cur.execute(query, (path,))
+            res = self.cur.fetchall()
+            return FileModel(*res[0])
 
     # TODO add parents
     @wait_for_commit_queue
     def add_or_update_file(self, file_model):
-        
-        fileName = file_model.filename 
-        is_directory = file_model.is_directory
-        size = file_model.size
-        checksum = file_model.checksum
-        last_ver_num = file_model.last_ver_num
+        f = file_model
         
         logging.debug("Adding a new entry in Files table")
         
-        with self.connection:
-            query = ("""
-begin tran
-   update table with (serializable) set ...
-   where kay = @key
-
-   if @@rowcount = 0
-   begin
-          insert table (key, ...) values (@key,..)
-   end
-commit tran""")
+        if not self.get_file(f):
+            self.add_file(f)
+            return
+        
+        query = ("""
+Update Files
+Set FilePath=?, 
+IsDirectory=?, 
+Size=?, 
+GoldenChecksum=?, 
+LastVersionNumber=?""")
             
-        self.q.put((query, [fileName, str(is_directory), str(size),
-                            sqlite3.Binary(checksum), str(last_ver_num)]))
+        self.q.put((query, (f.file_path, 
+                            str(f.is_directory), 
+                            str(f.size),
+                            sqlite3.Binary(f.checksum), 
+                            str(f.last_ver_num))
+                    ))
         
     @wait_for_commit_queue        
     def add_file(self, file_model):      
         query = ("INSERT INTO Files " +
                  "(FileName, IsDirectory, Size, GoldenChecksum, LastVersionNumber) " +
                  "VALUES (?, ?, ?, ?, ?)")
-        fileName = file_model.filename 
+        
+        fileName = os.path.basename(file_model.file_path)
         is_directory = file_model.is_directory
         size = file_model.size
         checksum = file_model.checksum

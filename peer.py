@@ -107,7 +107,7 @@ class LocalPeer(Peer):
         list_request = messages.ListRequest(dir_path=None)
         communication.send_message(list_request, self.tracker)
         
-        list_response = communication.recv_message(tracker)
+        list_response = communication.recv_message(self.tracker)
         
         for f in list_response.file_list:
             self.db.add_or_update_file(f)
@@ -189,7 +189,7 @@ class LocalPeer(Peer):
     
     @check_tracker_online
     def write(self, file_path, new_data, start_offset=None):
-        is_new_file = not os.path.exists(file_path)
+        is_new_file = bool(self.db.get_file(file_path))
         
         filesystem.write_file(file_path, new_data, start_offset)
         

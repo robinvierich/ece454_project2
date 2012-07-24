@@ -96,9 +96,7 @@ class Tracker(LocalPeer):
     
     @check_connected
     def handle_LIST_REQUEST(self, client_socket, list_request):
-        file_list = self.db.list_files(list_request.directory_path)
-        
-        
+        file_list = self.db.list_files(list_request.dir_path)
         
         list_response = messages.List(file_list)
         communication.send_message(list_response, socket=client_socket)
