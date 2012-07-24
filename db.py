@@ -164,14 +164,21 @@ class TrackerDb(PeerDb):
     @wait_for_commit_queue            
     def add_peer(self, ip, port, state, maxFileSize, maxFileSysSize, currFileSysSize, name=""):
         logging.debug("Adding a new entry in Peers table")
+        with self.connection:
+            query = "SELECT Id FROM Peers WHERE ip=? AND port=?"
+            self.cur.execute(query, [ip, port])
+            res = self.cur.fetchone()
+            # peer already exists. Update it, else make a new entry
+            if res is not None:
+                query = ("UPDATE Peers SET state=?, maxfilesize=?, maxfilesyssize=?, currfilesyssize=?," +
+                         "name=? WHERE Id=?")
+                self.q.put((query, [state, maxFileSize, maxFileSysSize, currFileSysSize, name, res[0]]))
+            else:
+                query = ("INSERT INTO Peers " +
+                         "(Name, Ip, Port, State, MaxFileSize, MaxFileSysSize, CurrFileSysSize) " +
+                         "VALUES (?, ?, ?, ?, ?, ?, ?)")
         
-        # TODO Check if the peer with the same Port and IP is already there
-        # in which case just updated its state?
-        query = ("INSERT INTO Peers " +
-                 "(Name, Ip, Port, State, MaxFileSize, MaxFileSysSize, CurrFileSysSize) " +
-                 "VALUES (?, ?, ?, ?, ?, ?, ?)")
-        
-        self.q.put((query, [name, ip, port, str(state), str(maxFileSize),
+                self.q.put((query, [name, ip, port, str(state), str(maxFileSize),
                             str(maxFileSysSize), str(currFileSysSize)]), [])
 
     @wait_for_commit_queue
