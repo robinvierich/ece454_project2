@@ -12,6 +12,7 @@ import logging
 import sys
 import re
 import os.path
+import filesystem
 
 local_peer = None
 
@@ -56,6 +57,14 @@ def archive(file_path=None):
     return local_peer.archive(file_path)
 
 
+# CLI Helper functions
+
+def write_cli(path):
+    logging.debug("Asking the local peer to write")
+    data = filesystem.read_file(path)
+    local_peer.write(path, data)
+
+
 def main():
     parser = OptionParser()
     parser.add_option("-t", "--tracker", action="store_true", dest="tracker",
@@ -94,7 +103,7 @@ def main():
     # Very simple cli
     while(True):
         inp = raw_input("> ")
-        if re.match(r'add', inp):
+        if re.match(r'write', inp):
             m = re.search(r'\s[^\s]+', inp)
             if m is None:
                 print "You must enter a file name"
@@ -103,7 +112,7 @@ def main():
             if not os.path.exists(f):
                 print "File doesn't exist"
                 continue
-            local_peer.add_new_file(f)
+            write_cli(f)
         elif re.match(r'disco', inp):
             local_peer.disconnect()
 

@@ -194,18 +194,20 @@ class LocalPeer(Peer):
     
     @check_tracker_online
     def write(self, file_path, new_data, start_offset=None):
+
+        file_path = "dfs/" + file_path
+
         is_new_file = not bool(self.db.get_file(file_path))
-        
+        logging.debug("Writing a file " + file_path + ". New file? - " + str(is_new_file))
+
         filesystem.write_file(self.get_local_path(file_path), new_data, start_offset)
         
-        
-        data = filesystem.read_file(file_path)
         is_directory = False
-        new_checksum = checksum.calc_checksum(data)
-        size = len(data)
-        
-        if is_new_file:
-            new_data = filesystem.read_file(file_path) # we have to read here in case there was an offset
+        new_checksum = checksum.calc_file_checksum(file_path)
+        size = os.path.getsize(file_path)
+        new_data = filesystem.read_file(file_path) # we have to read here in case there was an offset
+
+        if is_new_file:            
             file_model = FileModel(file_path, 
                              is_directory,
                              new_checksum,
@@ -213,18 +215,22 @@ class LocalPeer(Peer):
                              latest_version=1,
                              data=None)
             
-            self.db.add_file(file_model)
-            
-            file_msg = messages.NewFileAvailable(file_model)
+            self.db.add_or_update_file(file_model)
+            file_model.data = new_data
+
+            file_msg = messages.NewFileAvailable(file_model, self.port)
             communication.send_message(file_msg, self.tracker) # let the tracker know about the new file
         else:
             file_msg = messages.FileChanged(file_path, new_checksum, new_data, start_offset)
         
+        # I believe that the following should be done by the tracker
+        # Only do this if the tracker is offline
+
         # get peer list
-        peer_list = self._get_peer_list(file_path)
+        #peer_list = self._get_peer_list(file_path)
         
-        for peer in peer_list:
-            communication.send_message(file_msg, peer)
+        #for peer in peer_list:
+        #    communication.send_message(file_msg, peer)
         
     def _write_tracker_offline(self):
         
@@ -299,7 +305,7 @@ class LocalPeer(Peer):
 
     def add_file_to_db(self, path):
         logging.debug("Adding a new file to db: " + path)
-        # TODO extract filename from path
+
         isDir = 1 if os.path.isdir(path) else 0
         size = os.path.getsize(path)
         cs = checksum.calc_file_checksum(path)
@@ -356,9 +362,10 @@ class LocalPeer(Peer):
                 MessageType.ARCHIVE_REQUEST : self.handle_ARCHIVE_REQUEST,
                 MessageType.ARCHIVE_RESPONSE : self.handle_ARCHIVE_RESPONSE,
                 }
-    
+    # not used - done through blocking in connect()
     def handle_CONNECT_REQUEST(self, client_socket, msg):
         pass
+    # not used - tracker
     def handle_CONNECT_RESPONSE(self, client_socket, msg):
         pass
 

@@ -78,7 +78,13 @@ class PeerDb(object):
             #query = "select * from Files"
             self.cur.execute(query)
             res = self.cur.fetchall()
-            file_model_list = [FileModel(*f) for f in res if f]
+            #file_model_list = [FileModel(*f) for f in res if f]
+            file_model_list = []
+            for f in res:
+                if f is None:
+                    continue
+                # can't pickele buffer objects which GoldenChecksums are. Need to conv to str
+                file_model_list.append(FileModel(f[0], f[1], str(f[2]), f[3], f[4]))
             return file_model_list
 
     @wait_for_commit_queue
@@ -111,12 +117,12 @@ class PeerDb(object):
                 query = ("INSERT INTO Files " +
                          "(FileName, IsDirectory, Size, GoldenChecksum, LastVersionNumber) " +
                          "VALUES (?, ?, ?, ?, ?)")
-                self.q.put((query, [file_name, is_directory, size, checksum, last_ver_num]))
+                self.q.put((query, [file_name, is_directory, size, sqlite3.Binary(checksum), last_ver_num]))
             else:
                 # Update existing one
                 query = ("UPDATE Files SET FileName=?, IsDirectory=?, Size=?, GoldenChecksum=?, " +
                          "LastVersionNumber=? WHERE Id=?")
-                self.q.put((query, [file_name, is_directory, size, checksum, last_ver_num, res]))
+                self.q.put((query, [file_name, is_directory, size, sqlite3.Binary(checksum), last_ver_num, res]))
 
     @wait_for_commit_queue        
     def add_file(self, file_model):      
@@ -242,7 +248,7 @@ class TrackerDb(PeerDb):
                     raise RuntimeError("Cannot find file with name " + file_path)
                 query = "SELECT PeerId FROM PeerFile WHERE FileId=?"
                 self.cur.execute(query, [res])
-                res = self.cur.fetchall()
+                res = self.cur.fetchone()
                 if not res:
                     raise RuntimeError("Cannot find peer that has file " + file_path)
                 query = "SELECT Id, Name, Ip, Port, State FROM Peers WHERE Id=" + str(res[0])
@@ -288,12 +294,12 @@ class TrackerDb(PeerDb):
             query = ("INSERT INTO PeerFile (FileId, PeerId, Checksum, PendingUpdate) " +
                      "VALUES (?, ?, ?, ?)")
             # TODO add pending update
-            self.q.put((query, [file_id, peer_id, file_model.checksum, 0]))
+            self.q.put((query, [file_id, peer_id, sqlite3.Binary(file_model.checksum), 0]))
         else:
             query = ("UPDATE PeerFile SET FileId=?, PeerId=?, Checksum=?, PendingUpdate=? " +
                      "WHERE Id=?")
             # TODO add pending update
-            self.q.put((query, [file_id, peer_id, file_model.checksum, 0, res[0]]))
+            self.q.put((query, [file_id, peer_id, sqlite3.Binary(file_model.checksum), 0, res[0]]))
     
     @wait_for_commit_queue
     def get_peers_to_replicate_file(self, file_model, peer_ip, peer_port, max_replication):
@@ -308,9 +314,10 @@ class TrackerDb(PeerDb):
             self.cur.execute(query, [peer_id, PeerState.ONLINE, file_model.size, 
                                      file_model.size])
         else:
-            query = ("SELECT Id, Ip, Port FROM Peers " +
+            query = ("SELECT Id, Ip, Port FROM Peers WHERE " +
                      "State=? AND MaxFileSize>=? " +
                      "AND MaxFileSysSize>=CurrFileSysSize+?")
+
             self.cur.execute(query, [PeerState.ONLINE, file_model.size, 
                                      file_model.size])
         return self.cur.fetchall()
@@ -322,7 +329,7 @@ class TrackerDb(PeerDb):
             if file_id is None:
                 raise RuntimeError("Cannot find file " + file_path)
             query = "SELECT Checksum FROM Files WHERE FileId=? AND Checksum=?"
-            self.cur.execute(query, [file_id, checksum])
+            self.cur.execute(query, [file_id, sqlite3.Binary(checksum)])
             res = self.cur.fetchone()
             return False if res is None else True
                 
