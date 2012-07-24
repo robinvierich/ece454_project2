@@ -38,12 +38,13 @@ class MessageType(object):
 
 
 class FileModel(object):
-    def __init__(self, path, is_dir, checksum, size, latest_version, data=None):
+    def __init__(self, path, is_dir, checksum, size, latest_version, parent_id=None, data=None):
         self.path = path
         self.is_dir = is_dir
         self.checksum = checksum
         self.size = size
         self.data = data
+        self.parent_id = parent_id
         self.latest_version = latest_version
         
         
@@ -103,11 +104,9 @@ class FileDownloadDecline(Message):
         self.file_path = file_path
 
 class FileData(Message):
-    def __init__(self, file_path, file_checksum, data):
+    def __init__(self, file_model):
         super(FileData, self).__init__(MessageType.FILE_DATA)
-        self.file_path = file_path
-        self.file_checksum = file_checksum
-        self.file_data = data
+        self.file_model = file_model
 
 class FileChanged(Message):
     def __init__(self, file_path, new_checksum, new_data, start_offset):

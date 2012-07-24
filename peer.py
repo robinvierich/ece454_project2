@@ -61,8 +61,11 @@ class LocalPeer(Peer):
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._acceptorThread = AcceptorThread(self)
         self.start_server()
-
+        
+        self._backlog = []
+        
         self.root_path = root_path
+        
 
         if type(self) == LocalPeer: # exclude sub-classes
             self.tracker = Peer(tracker.Tracker.HOSTNAME, tracker.Tracker.PORT)
@@ -379,17 +382,24 @@ class LocalPeer(Peer):
     def handle_FILE_DOWNLOAD_DECLINE(self, client_socket, msg):
         pass
     
-    def handle_FILE_DATA(self, client_socket, msg):
-        
+    def handle_FILE_DATA(self, client_socket, file_data_msg):
         # save file
+        f = file_data_msg.file_model
+        start_offset = file_data_msg.start_offset
+        
+        filesystem.write_file(f.path, f.data, start_offset)
         
         # add file to db
+        self.db.add_or_update_file(f)
         
-        # send new file available to tracker
-        # or 
-        # record in backlog if tracker offline
+        file_model = FileModel(f.path, f.is_dir, f.checksum, f.size, f.latest_version, f.data)
+        new_file_available_msg = messages.NewFileAvailable(file_model)
         
-        pass
+        if self.is_tracker_online():
+            communication.send_message(new_file_available_msg, self.tracker)
+        else:
+            self.backlog.append((new_file_available_msg, self.tracker))
+
     
     def handle_FILE_CHANGED(self, client_socket, msg):        
         file_path = msg.file_path
