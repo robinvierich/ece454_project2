@@ -23,10 +23,14 @@ class PeerState(object):
 class Peer(object):
     HOSTNAME = "localhost"
     PORT = 11111
+    NAME = "Peer"
     
-    def __init__(self, hostname=HOSTNAME, port=PORT):
+    def __init__(self, hostname=HOSTNAME, port=PORT, name=NAME, state=PeerState.OFFLINE):
         self.hostname = hostname
         self.port = port
+        self.name = name
+        self.state = state
+        
 
 def check_tracker_online(function):
     """A decorator that checks if the tracker is online
@@ -71,7 +75,6 @@ class LocalPeer(Peer):
             self.tracker = Peer(tracker.Tracker.HOSTNAME, tracker.Tracker.PORT)
             self.db = LocalPeerDb(db_name)
             self.connect(LocalPeer.PASSWORD)            
-            self.state = PeerState.OFFLINE
 
     def start_server(self):        
         connected = False

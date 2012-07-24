@@ -73,9 +73,9 @@ class PeerDb(object):
         logging.debug("Listing files")
         
         with self.connection:
-#            query = ("SELECT FileName, IsDirectory, GoldenChecksum, Size, LastVersionNumber"+
-#                     "FROM Files")
-            query = "select * from Files"
+            query = ("SELECT FileName, IsDirectory, GoldenChecksum, Size, LastVersionNumber"+
+                     "FROM Files")
+            #query = "select * from Files"
             self.cur.execute(query)
             res = self.cur.fetchall()
             file_model_list = [FileModel(*f) for f in res if f]
@@ -106,7 +106,7 @@ class PeerDb(object):
             query = ("UPDATE Files SET FileName=?, IsDirectory=?, Size=?, GoldenChecksum=?, " +
                          "LastVersionNumber=? WHERE Id=?")
             self.q.put((query, [f.name, str(f.is_dir), str(f.size),
-                                sqlite3.Binary(f.checksum), str(f.latest_version), res]))
+                                sqlite3.Binary(f.checksum), str(f.latest_version)]))
             # We assume no directory trees and unique file names
                 
 
@@ -243,7 +243,12 @@ class TrackerDb(PeerDb):
             res = self.cur.fetchall()
             if res is None:
                 raise RuntimeError("Cannot get a peers list " + file_path)
-            return res            
+            
+            from peer import Peer
+            
+            peer_list = [Peer(db_peer[2], db_peer[3], db_peer[1], db_peer[4]) for db_peer in res]
+            
+            return peer_list            
 
     @wait_for_commit_queue
     def has_unreplicated_files(self, peer_ip, peer_port):
@@ -285,17 +290,20 @@ class TrackerDb(PeerDb):
     @wait_for_commit_queue
     def get_peers_to_replicate_file(self, file_model, peer_ip, peer_port, max_replication):
         peer_id = self.get_peer_id(peer_ip, peer_port)
-        if peer_id is None:
+        
+        from peer import PeerState
+        
+        if not peer_id:
             query = ("SELECT Id, Ip, Port FROM Peers " +
                      "WHERE Id!=? AND State=? AND MaxFileSize>=? " +
-                     "AND MaxFileSysSize>=CurrFileSysSize+?")
-            self.cur.execute(query, [peer_id, peer.PeerState.ONLINE, file_model.size, 
+                     "AND MaxFileSysSize>=CurrFileSysSize+?")            
+            self.cur.execute(query, [peer_id, PeerState.ONLINE, file_model.size, 
                                      file_model.size])
         else:
             query = ("SELECT Id, Ip, Port FROM Peers " +
                      "State=? AND MaxFileSize>=? " +
                      "AND MaxFileSysSize>=CurrFileSysSize+?")
-            self.cur.execute(query, [peer.PeerState.ONLINE, file_model.size, 
+            self.cur.execute(query, [PeerState.ONLINE, file_model.size, 
                                      file_model.size])
         return self.cur.fetchall()
         
@@ -343,8 +351,10 @@ class LocalPeerDb(PeerDb):
     def clear_peers_and_insert(self, peers_list):
         query = "DELETE FROM Peers"
         self.q.put((query, []))
-        query = "INSERT INTO Peers VALUES (?, ?, ?, ?, ?)"
-        self.q.put((query, peers_list))
+        
+        for p in peers_list:
+            query = "INSERT INTO Peers (Name, Ip, Port, State) VALUES (?, ?, ?, ?)"
+            self.q.put((query, (p.name, p.hostname, p.port, p.state)))
         
     @wait_for_commit_queue
     def get_peer_list(self):
@@ -354,7 +364,7 @@ class LocalPeerDb(PeerDb):
             
             self.cur.execute(query)
             res = self.cur.fetchall()
-            if res is None:
+            if not res:
                 raise RuntimeError("Cannot get a peers list (LocalPeerDb)")
             return res
 

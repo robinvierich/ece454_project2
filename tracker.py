@@ -82,7 +82,7 @@ class Tracker(LocalPeer):
         logging.debug("Handling the peer list request")
         file_path = peer_list_request.file_path
         
-        peer_list = []            
+        peer_list = []
         try:
             peer_list = self.db.get_peer_list(file_path)
         except RuntimeError, e:
