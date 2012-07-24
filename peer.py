@@ -373,26 +373,34 @@ class LocalPeer(Peer):
     def handle_CONNECT_RESPONSE(self, client_socket, msg):
         pass
 
+    # not used
     def handle_DISCONNECT_REQUEST(self, client_socket, msg):
         pass
+    
+    # not used
     def handle_DISCONNECT_RESPONSE(self, client_socket, msg):
         pass
     
+    # not used
     def handle_PEER_LIST_REQUEST(self, client_socket, msg):
         pass
 
+    # not used
     def handle_FILE_DOWNLOAD_REQUEST(self, client_socket, msg):
         pass
     
+    # not used
     def handle_FILE_DOWNLOAD_DECLINE(self, client_socket, msg):
         pass
+    
     
     def handle_FILE_DATA(self, client_socket, file_data_msg):
         # save file
         f = file_data_msg.file_model
         start_offset = file_data_msg.start_offset
         
-        filesystem.write_file(f.path, f.data, start_offset)
+        local_path = filesystem.get_local_path(self, f.path, f.latest_version)
+        filesystem.write_file(local_path, f.data, start_offset)
         
         # add file to db
         self.db.add_or_update_file(f)
