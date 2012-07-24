@@ -70,9 +70,10 @@ class ConnectResponse(Message):
     
     
 class DisconnectRequest(Message):
-    def __init__(self, check_for_unreplicated_files):
+    def __init__(self, check_for_unreplicated_files, port):
         super(DisconnectRequest, self).__init__(MessageType.DISCONNECT_REQUEST)
         self.check_for_unreplicated_files = check_for_unreplicated_files
+        self.port = port
     
 class DisconnectResponse(Message):
     def __init__(self, should_wait):

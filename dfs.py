@@ -104,6 +104,9 @@ def main():
                 print "File doesn't exist"
                 continue
             local_peer.add_new_file(f)
+        elif re.match(r'disco', inp):
+            local_peer.disconnect()
+
         elif re.match(r'^quit', inp):
             sys.exit()
 

@@ -54,19 +54,21 @@ class Tracker(LocalPeer):
             
         else:
             logging.debug("Connection Request - wrong password")        
-        
 
         communication.send_message(response, socket=client_socket)
     
     @check_connected
     def handle_DISCONNECT_REQUEST(self, client_socket, disconnect_request):
+        logging.debug("Handling disconnect request")
         if not disconnect_request.check_for_unreplicated_files:
             response = messages.DisconnectResponse(False)
             communication.send_message(response, socket=client_socket)
             return
     
-        # TODO: check if there are unreplicated files on the node
-        unreplicated = False
+        peer_ip = client_socket.getpeername()[0]
+        peer_port = disconnect_request.port
+        unreplicated = self.db.has_unreplicated_files(peer_ip, peer_port)
+        logging.debug("Unreplicated files: " + str(unreplicated))
         response = messages.DisconnectResponse(unreplicated)
         communication.send_message(response, socket=client_socket)
     
@@ -96,10 +98,8 @@ class Tracker(LocalPeer):
     
     @check_connected
     def handle_LIST_REQUEST(self, client_socket, list_request):
+        logging.debug("Handling list request")
         file_list = self.db.list_files(list_request.dir_path)
-        
-        
-        
         list_response = messages.List(file_list)
         communication.send_message(list_response, socket=client_socket)
     

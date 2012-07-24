@@ -216,6 +216,24 @@ class TrackerDb(PeerDb):
             if res is None:
                 raise RuntimeError("Cannot get a peers list " + file_path)
             return res            
+
+    @wait_for_commit_queue
+    def has_unreplicated_files(self, peer_ip, peer_port):
+        logging.debug("Checking if a peer has unreplicated files")
+        with self.connection:
+            # what's the peer we're dealing with?
+            query = "SELECT Id FROM Peers WHERE Ip=? AND Port=?"
+            self.cur.execute(query, [peer_ip, peer_port])
+            res = self.cur.fetchone()
+            if res is None:
+                raise RuntimeError("Cannot find peer!")
+            # this is a bit of a nasty query to find # of unreplicated files. tested, seems to work
+            query = ("SELECT count(*) FROM PeerFile WHERE FileId NOT IN " +
+                     "(SELECT FileId FROM PeerFile WHERE FileId IN " +
+                     "(SELECT FileId FROM PeerFile WHERE PeerId=?) AND PeerId!=?) AND PeerId=?")
+            self.cur.execute(query, [res[0], res[0], res[0]])
+            res = self.cur.fetchone()
+            return False if res is None else True
                 
 class LocalPeerDb(PeerDb):
     DB_FILE = "peer_db.db"
