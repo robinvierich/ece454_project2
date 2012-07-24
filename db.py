@@ -47,6 +47,18 @@ class PeerDb(object):
                 logging.debug("Creating the LocalPeerFiles table")
                 self.q.put(("CREATE TABLE LocalPeerFiles(FileId INT)", []))
 
+    def list_files(self, path):
+        # for now, this just lists all files that the tracker knows about
+        logging.debug("Listing files")
+        logging.debug("Waiting until the DB Commit queue is empty")
+        self.q.join()
+        logging.debug("The DB Commit queue is now empty. Gonna execute the query now.")
+        with self.connection:
+            query = ("SELECT * FROM FILES")
+            self.cur.execute(query)
+            res = self.cur.fetchall()            
+            return res
+
     # TODO add parents
     def add_file(self, fileName, isDirectory, size, checksum, lastVerNum):
         logging.debug("Adding a new entry in Files table")
@@ -60,6 +72,19 @@ class PeerDb(object):
 
             self.q.put((query, [fileName, str(isDirectory), str(size),
                                 sqlite3.Binary(checksum), str(lastVerNum)]))
+
+    # Delete everything from the files table and repopulate it with file_list
+    def clear_files_and_add_all(self, file_list):
+        logging.debug("Adding a files into the File table")
+        logging.debug("Waiting until the DB Commit queue is empty")
+        self.q.join()
+        logging.debug("The DB Commit queue is now empty. Gonna execute the query now.")
+        with self.connection:
+            query = ("DELETE FROM Files")
+            self.q.put((query, []))
+            query = ("INSERT INTO Files VALUES (?, ?, ?, ?, ?, ?, ?)")
+            self.q.put((query, file_list))
+
 
 class TrackerDb(PeerDb):    
     DB_FILE = "tracker_db.db"
