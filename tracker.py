@@ -123,7 +123,10 @@ class Tracker(LocalPeer):
     
     @check_connected
     def handle_VALIDATE_CHECKSUM_REQUEST(self, client_socket, msg):
-        pass
+        logging.debug("Handling the check checksum request")
+        valid = self.db.check_checksum(msg.file_path, msg.file_checksum)
+        response = messages.ValidateChecksumResponse(msg.file_path, valid)
+        communication.send_message(response, socket=client_socket)
     
     @check_connected
     def handle_DELETE_REQUEST(self, client_socket, msg):

@@ -308,8 +308,17 @@ class TrackerDb(PeerDb):
             self.cur.execute(query, [peer.PeerState.ONLINE, file_model.size, 
                                      file_model.size])
         return self.cur.fetchall()
-            
         
+    @wait_for_commit_queue
+    def check_checksum(self, file_path, checksum):
+        file_id = self.get_file_id(file_path)
+        with self.connection:
+            if file_id is None:
+                raise RuntimeError("Cannot find file " + file_path)
+            query = "SELECT Checksum FROM Files WHERE FileId=? AND Checksum=?"
+            self.cur.execute(query, [file_id, checksum])
+            res = self.cur.fetchone()
+            return False if res is None else True
                 
 class LocalPeerDb(PeerDb):
     DB_FILE = "peer_db.db"
