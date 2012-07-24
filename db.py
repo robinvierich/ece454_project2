@@ -27,7 +27,7 @@ def wait_for_commit_queue(function):
 
 class PeerDb(object):
     def __init__(self, db_name):
-        logging.debug("Initializing Tables Common to LocalPeer and Tracker")
+        logging.debug("Initializing Tables Common to LocalPeer and Tracker")        
         self.db_name = db_name
         self.q = Queue.Queue()
         self.connection = None
@@ -147,9 +147,13 @@ LastVersionNumber=?""")
 
 class TrackerDb(PeerDb):    
     DB_FILE = "tracker_db.db"
-    def __init__(self):
+    def __init__(self, db_name=DB_FILE):
         logging.debug("Initializing Tracker Database")
-        PeerDb.__init__(self, TrackerDb.DB_FILE)
+        
+        if not db_name:
+            db_name = LocalPeerDb.DB_FILE
+        
+        PeerDb.__init__(self, db_name)
         self.create_tables()
     
     def create_tables(self):
@@ -256,9 +260,12 @@ class TrackerDb(PeerDb):
                 
 class LocalPeerDb(PeerDb):
     DB_FILE = "peer_db.db"
-    def __init__(self):
+    def __init__(self, db_name=DB_FILE):
         logging.debug("Initializing Local Peer Database")
-        PeerDb.__init__(self, LocalPeerDb.DB_FILE)
+        
+        if not db_name:
+            db_name = LocalPeerDb.DB_FILE         
+        PeerDb.__init__(self, db_name)
         self.create_tables()
 
     def create_tables(self):

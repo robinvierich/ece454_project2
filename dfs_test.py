@@ -51,7 +51,7 @@ def run_tests():
     dfs.init_local_peer(Tracker.HOSTNAME, Tracker.PORT)
     dfs.local_peer.root_path="./peer1/"
     
-    peer2 = LocalPeer(port = LocalPeer.PORT + 1, root_path="./peer2/")
+    peer2 = LocalPeer(port = LocalPeer.PORT + 1, root_path="./peer2/", db_name="peer2_db.db")
     
     test_write()
 

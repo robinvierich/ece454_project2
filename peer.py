@@ -59,7 +59,7 @@ class LocalPeer(Peer):
     PASSWORD = '12345'
     MAX_FILE_SIZE = 100000000
     MAX_FILE_SYS_SIZE = 1000000000
-    def __init__(self, hostname=Peer.HOSTNAME, port=Peer.PORT, root_path=""):
+    def __init__(self, hostname=Peer.HOSTNAME, port=Peer.PORT, root_path="", db_name=None):
         super(LocalPeer, self).__init__(hostname, port)        
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._acceptorThread = AcceptorThread(self)
@@ -69,7 +69,7 @@ class LocalPeer(Peer):
 
         if type(self) == LocalPeer: # exclude sub-classes
             self.tracker = Peer(tracker.Tracker.HOSTNAME, tracker.Tracker.PORT)
-            self.db = LocalPeerDb()
+            self.db = LocalPeerDb(db_name)
             self.connect(LocalPeer.PASSWORD)            
             self.state = PeerState.OFFLINE
 
