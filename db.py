@@ -180,14 +180,21 @@ class TrackerDb(PeerDb):
     @wait_for_commit_queue            
     def add_peer(self, ip, port, state, maxFileSize, maxFileSysSize, currFileSysSize, name=""):
         logging.debug("Adding a new entry in Peers table")
+        with self.connection:
+            query = "SELECT Id FROM Peers WHERE ip=? AND port=?"
+            self.cur.execute(query, [ip, port])
+            res = self.cur.fetchone()
+            # peer already exists. Update it, else make a new entry
+            if res is not None:
+                query = ("UPDATE Peers SET state=?, maxfilesize=?, maxfilesyssize=?, currfilesyssize=?," +
+                         "name=? WHERE Id=?")
+                self.q.put((query, [state, maxFileSize, maxFileSysSize, currFileSysSize, name, res[0]]))
+            else:
+                query = ("INSERT INTO Peers " +
+                         "(Name, Ip, Port, State, MaxFileSize, MaxFileSysSize, CurrFileSysSize) " +
+                         "VALUES (?, ?, ?, ?, ?, ?, ?)")
         
-        # TODO Check if the peer with the same Port and IP is already there
-        # in which case just updated its state?
-        query = ("INSERT INTO Peers " +
-                 "(Name, Ip, Port, State, MaxFileSize, MaxFileSysSize, CurrFileSysSize) " +
-                 "VALUES (?, ?, ?, ?, ?, ?, ?)")
-        
-        self.q.put((query, [name, ip, port, str(state), str(maxFileSize),
+                self.q.put((query, [name, ip, port, str(state), str(maxFileSize),
                             str(maxFileSysSize), str(currFileSysSize)]), [])
 
     @wait_for_commit_queue
@@ -225,6 +232,24 @@ class TrackerDb(PeerDb):
             if res is None:
                 raise RuntimeError("Cannot get a peers list " + file_path)
             return res            
+
+    @wait_for_commit_queue
+    def has_unreplicated_files(self, peer_ip, peer_port):
+        logging.debug("Checking if a peer has unreplicated files")
+        with self.connection:
+            # what's the peer we're dealing with?
+            query = "SELECT Id FROM Peers WHERE Ip=? AND Port=?"
+            self.cur.execute(query, [peer_ip, peer_port])
+            res = self.cur.fetchone()
+            if res is None:
+                raise RuntimeError("Cannot find peer!")
+            # this is a bit of a nasty query to find # of unreplicated files. tested, seems to work
+            query = ("SELECT count(*) FROM PeerFile WHERE FileId NOT IN " +
+                     "(SELECT FileId FROM PeerFile WHERE FileId IN " +
+                     "(SELECT FileId FROM PeerFile WHERE PeerId=?) AND PeerId!=?) AND PeerId=?")
+            self.cur.execute(query, [res[0], res[0], res[0]])
+            res = self.cur.fetchone()
+            return False if res is None else True
                 
 class LocalPeerDb(PeerDb):
     DB_FILE = "peer_db.db"

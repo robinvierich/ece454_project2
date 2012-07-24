@@ -99,11 +99,14 @@ class LocalPeer(Peer):
             # get peers and file lists
             peer_list = self._get_peer_list(None)
             self.db.clear_peers_and_insert(peer_list)
-            self.ls()
+            
+            file_list = self.ls()
+            # DISABLED FOR NOW
+            #for f in file_list:
+            #    self.db.add_or_update_file(f)
         else:
             logging.debug("Connection to tracker unsuccessful")
-        
-        
+                
         list_request = messages.ListRequest(dir_path=None)
         communication.send_message(list_request, self.tracker)
         
@@ -111,14 +114,18 @@ class LocalPeer(Peer):
         
         for f in list_response.file_list:
             self.db.add_or_update_file(f)
-        
+
         return successful
 
     def disconnect(self,check_for_unreplicated_files=True):
-        communication.send_message(messages.DisconnectRequest(), self.tracker)
+        logging.debug("Asking tracker to disconnect")
+        disconnect_msg = messages.DisconnectRequest(check_for_unreplicated_files, self.port)
+        communication.send_message(disconnect_msg, self.tracker)
         response = communication.recv_message(self.tracker)
-        
+        logging.debug("Response received. Should wait? " + str(response.should_wait))
         while (response.should_wait):
+            # TODO
+            # So it is a tracker's responsibility to notify peer when it is ok to disconnect?
             response = communication.recv_message(self.tracker)
 
         self.stop()
