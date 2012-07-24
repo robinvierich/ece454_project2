@@ -46,7 +46,9 @@ class FileModel(object):
         self.latest_version = latest_version
         self.data = data
         self.parent_id = parent_id
-        
+    
+    def __repr__(self):
+        return "file: %s, v%i" % (self.path, self.latest_version)
         
 class Message(object):    
     def __init__(self, msg_type):
@@ -109,12 +111,13 @@ class FileData(Message):
         self.file_model = file_model
 
 class FileChanged(Message):
-    def __init__(self, file_path, new_checksum, new_data, start_offset):
+    def __init__(self, file_path, new_checksum, new_data, start_offset, latest_version):
         super(FileChanged, self).__init__(MessageType.FILE_CHANGED)
         self.file_path = file_path
         self.new_checksum = new_checksum
         self.new_data = new_data
         self.start_offset = start_offset
+        self.latest_version = latest_version
 
 class ValidateChecksumRequest(Message):
     def __init__(self, file_path, file_checksum):

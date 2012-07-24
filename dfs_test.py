@@ -14,7 +14,7 @@ def test_connect(pwd="12345"):
     assert(successful == True)
     print "connect successful"
 
-def test_read(testfile_path = "./dfs_test.txt",
+def test_read(testfile_path = "dfs_test.txt",
               testfile_start_offset = None,
               testfile_length = None):
     
@@ -24,7 +24,7 @@ def test_read(testfile_path = "./dfs_test.txt",
     dfs.read(testfile_path, testfile_start_offset, testfile_length)
     
 
-def test_write(testfile_path = "./dfs_test.txt", 
+def test_write(testfile_path = "dfs_test.txt", 
                testfile_contents = "Test File Contents",
                testfile_start_offset = None):
     
@@ -32,17 +32,18 @@ def test_write(testfile_path = "./dfs_test.txt",
     print "Running test_write (%s, \"%s\", offset=%s)" % tuple(params)
     
     dfs.write(testfile_path, testfile_contents, testfile_start_offset)
+
+def test_ls(dir_path=None):
+    print "testng ls()"
     
-    assert (os.path.exists(testfile_path))
-    print "local path exists"
+    ls_result = dfs.ls(dir_path)
     
-    assert (os.path.isfile(testfile_path))
-    print "local path is a file"
-    
+    print "ls() result:"
+    print ls_result
 
 def run_tests():
     logging.basicConfig(level=logging.DEBUG, 
-                        format="%(message)s : %(funcName)s() %(threadName)s ")
+                        format="%(filename)s.%(funcName)s(): %(message)s")
     
     print "DFS Test"
     print "Starting Tracker"
@@ -54,6 +55,7 @@ def run_tests():
     peer2 = LocalPeer(port = LocalPeer.PORT + 1, root_path="./peer2/", db_name="peer2_db.db")
     
     test_write()
+    test_ls()
 
 if __name__ == "__main__":
     run_tests()

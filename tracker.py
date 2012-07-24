@@ -129,7 +129,6 @@ class Tracker(LocalPeer):
     
     @check_connected
     def handle_DELETE_REQUEST(self, client_socket, msg):
-        
         pass
     
     @check_connected
@@ -137,7 +136,20 @@ class Tracker(LocalPeer):
         pass
 
     @check_connected    
-    def handle_ARCHIVE_REQUEST(self, client_socket, msg):
-        pass
+    def handle_ARCHIVE_REQUEST(self, client_socket, archive_request):
+        file_path = archive_request.file_path
+        response = messages.ArchiveResponse(file_path, archived=False)
+        
+        logging.info("Handling Archive Request")
+        
+        
+        f = self.db.get_file(file_path)
+        if not f:
+            communication.send_message(response, socket=client_socket)
+            return
+        
+        f.latest_version += 1
+        communication.send_message(response, socket=client_socket)
     
+        
     

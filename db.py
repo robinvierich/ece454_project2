@@ -83,7 +83,7 @@ class PeerDb(object):
             for f in res:
                 if f is None:
                     continue
-                # can't pickele buffer objects which GoldenChecksums are. Need to conv to str
+                # can't pickle buffer objects which GoldenChecksums are. Need to conv to str
                 file_model_list.append(FileModel(f[0], f[1], str(f[2]), f[3], f[4]))
             return file_model_list
 
