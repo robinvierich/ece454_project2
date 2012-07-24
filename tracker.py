@@ -34,6 +34,7 @@ class Tracker(LocalPeer):
     
     HOSTNAME = "localhost"
     PORT = 12345
+    REPLICATION_LEVEL = 100
    
     def __init__(self, port=PORT):
         super(Tracker, self).__init__(hostname=Tracker.HOSTNAME, port=port)
@@ -56,6 +57,8 @@ class Tracker(LocalPeer):
             logging.debug("Connection Request - wrong password")        
 
         communication.send_message(response, socket=client_socket)
+
+        # TODO broadcast event
     
     @check_connected
     def handle_DISCONNECT_REQUEST(self, client_socket, disconnect_request):
@@ -71,6 +74,8 @@ class Tracker(LocalPeer):
         logging.debug("Unreplicated files: " + str(unreplicated))
         response = messages.DisconnectResponse(unreplicated)
         communication.send_message(response, socket=client_socket)
+
+        # TODO broadcast event
     
     @check_connected
     def handle_PEER_LIST_REQUEST(self, client_socket, peer_list_request):
@@ -90,13 +95,22 @@ class Tracker(LocalPeer):
     
     @check_connected
     def handle_NEW_FILE_AVAILABLE(self, client_socket, new_file_available_msg):
-        # TODO: peers where file should be replicated
+        
         f = new_file_available_msg.file_model
+        peer_ip = client_socket.getpeername()[0]
+        peer_port = new_file_available_msg.port
+                
+        self.db.add_or_update_file(f)
+        self.db.add_file_peer_entry(f, peer_ip, peer_port)
         
-        self.db.add_file(f)
-        
-        # TODO: insert into PeerFile table
-        #self.db.
+        # for now, to find peers where the file should be replicated, 
+        # just select peers that are able to replicate the file and 
+        # that have the smallest fs size. limit the # by replication level
+
+        peers_list = self.db.get_peers_to_replicate_file(f, peer_ip, peer_port, 
+                                                         Tracker.REPLICATION_LEVEL)
+
+        # TODO notify all peers about the new file
     
     @check_connected
     def handle_LIST_REQUEST(self, client_socket, list_request):
