@@ -73,9 +73,9 @@ class PeerDb(object):
         logging.debug("Listing files")
         
         with self.connection:
-#            query = ("SELECT Id, FilePath, IsDirectory, GoldenChecksum, Size, LastVersionNumber"+
-#                     "FROM Files")
-            query = "select * from Files"
+            query = ("SELECT FileName, IsDirectory, GoldenChecksum, Size, LastVersionNumber "+
+                     "FROM Files")
+            #query = "select * from Files"
             self.cur.execute(query)
             res = self.cur.fetchall()
             file_model_list = [FileModel(*f) for f in res if f]
@@ -97,8 +97,8 @@ class PeerDb(object):
     @wait_for_commit_queue
     def add_or_update_file(self, file_model):
         
-        file_name = file_model.filename 
-        is_directory = file_model.is_directory
+        file_name = file_model.path 
+        is_directory = file_model.is_dir
         size = file_model.size
         checksum = file_model.checksum
         last_ver_num = file_model.last_ver_num
@@ -111,14 +111,12 @@ class PeerDb(object):
                 query = ("INSERT INTO Files " +
                          "(FileName, IsDirectory, Size, GoldenChecksum, LastVersionNumber) " +
                          "VALUES (?, ?, ?, ?, ?)")
-                self.q.put((query, [file_name, str(is_directory), str(size),
-                                    sqlite3.Binary(checksum), str(last_ver_num)]))
+                self.q.put((query, [file_name, is_directory, size, checksum, last_ver_num]))
             else:
                 # Update existing one
                 query = ("UPDATE Files SET FileName=?, IsDirectory=?, Size=?, GoldenChecksum=?, " +
                          "LastVersionNumber=? WHERE Id=?")
-                self.q.put((query, [file_name, str(is_directory), str(size),
-                                    sqlite3.Binary(checksum), str(last_ver_num), res]))
+                self.q.put((query, [file_name, is_directory, size, checksum, last_ver_num, res]))
 
     @wait_for_commit_queue        
     def add_file(self, file_model):      

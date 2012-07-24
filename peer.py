@@ -103,20 +103,11 @@ class LocalPeer(Peer):
             self.db.clear_peers_and_insert(peer_list)
             
             file_list = self.ls()
-            # DISABLED FOR NOW
-            #for f in file_list:
-            #    self.db.add_or_update_file(f)
+            for f in file_list:
+                self.db.add_or_update_file(f)
         else:
             logging.debug("Connection to tracker unsuccessful")
                 
-        list_request = messages.ListRequest(dir_path=None)
-        communication.send_message(list_request, self.tracker)
-        
-        list_response = communication.recv_message(self.tracker)
-        
-        for f in list_response.file_list:
-            self.db.add_or_update_file(f)
-
         return successful
 
     def disconnect(self,check_for_unreplicated_files=True):

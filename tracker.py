@@ -130,6 +130,7 @@ class Tracker(LocalPeer):
     
     @check_connected
     def handle_DELETE_REQUEST(self, client_socket, msg):
+        
         pass
     
     @check_connected
