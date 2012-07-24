@@ -185,6 +185,9 @@ class LocalPeerDb(PeerDb):
         self.q.put((query, []))
         query = "INSERT INTO Peers VALUES (?, ?, ?, ?, ?)"
         self.q.put((query, peers_list))
+    
+    def get_peer_list(self):
+        pass
 
 class DbThread(threading.Thread):
     def __init__(self, db):            

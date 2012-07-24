@@ -31,6 +31,30 @@ class Peer(object):
         self.hostname = hostname
         self.port = port
 
+def check_tracker_online(function):
+    """A decorator that checks if the tracker is online
+        before running a function. 
+        
+        If the tracker is not connected, <function_name>_tracker_offline is called
+        """
+
+    def wrapper(*args, **kwargs):
+        peer = args[0]
+        
+        function_to_call = function
+        
+        if peer.is_tracker_online() == False:
+            function_to_call = getattr(peer, function.func_name + '_tracker_offline')
+        
+        if function_to_call == None:
+            return
+            
+        return_value = function_to_call(*args, **kwargs)
+        return return_value
+        
+    return wrapper
+
+
 class LocalPeer(Peer):  
     PASSWORD = '12345'
     MAX_FILE_SIZE = 100000000
@@ -90,9 +114,10 @@ class LocalPeer(Peer):
 
         self.stop()
     
-    def _download_file(self, file_path, maxAttempts=3):
+    def _download_file(self, file_path, peer_list=None, maxAttempts=3):
         # get peer list for this file_path
-        peer_list = self._get_peer_list(file_path)
+        if peer_list == None:
+            peer_list = self._get_peer_list(file_path)
         
         attempt = 0
         while attempt < maxAttempts:
@@ -122,8 +147,10 @@ class LocalPeer(Peer):
     
     
     # File Operations
+    
+    @check_tracker_online
     def read(self, file_path, start_offset=None, length=-1):
-        file_data = filesystem.read_file(file_path)
+        file_data = filesystem.read_file(file_path, start_offset, length)
         if file_data != None:
             return file_data
         
@@ -132,6 +159,18 @@ class LocalPeer(Peer):
         
         return file_data
     
+    def read_tracker_offline(self, file_path, start_offset=None, length=-1):
+        file_data = filesystem.read_file(file_path, start_offset, length)
+        if file_data != None:
+            return file_data
+        
+        peer_list = self.db.get_peer_list()
+        
+        self._download_file(file_path, peer_list)
+        
+        pass
+    
+    @check_tracker_online
     def write(self, file_path, new_data, start_offset=None):
         is_new_file = not os.path.exists(file_path)
         
@@ -153,7 +192,13 @@ class LocalPeer(Peer):
         for peer in peer_list:
             communication.send_message(file_msg, peer)
         
+    def _write_tracker_offline(self):
         
+        #record the write in a backlog
+        
+        # send out newfile/filechanged messages to all peers
+        
+        pass
     
     def delete(self, file_path):
         delete_request = messages.DeleteRequest(file_path)
@@ -281,9 +326,6 @@ class LocalPeer(Peer):
     def handle_CONNECT_RESPONSE(self, client_socket, msg):
         pass
 
-    # Not used. Communicaton is blocking. see connect()
-    def handle_CONNECT_RESPONSE(self, client_socket, msg):        
-        pass
     def handle_DISCONNECT_REQUEST(self, client_socket, msg):
         pass
     def handle_DISCONNECT_RESPONSE(self, client_socket, msg):
@@ -297,7 +339,17 @@ class LocalPeer(Peer):
     
     def handle_FILE_DOWNLOAD_DECLINE(self, client_socket, msg):
         pass
+    
     def handle_FILE_DATA(self, client_socket, msg):
+        
+        # save file
+        
+        # add file to db
+        
+        # send new file available to tracker
+        # or 
+        # record in backlog if tracker offline
+        
         pass
     
     def handle_FILE_CHANGED(self, client_socket, msg):        
