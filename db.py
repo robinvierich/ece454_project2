@@ -251,13 +251,16 @@ class TrackerDb(PeerDb):
                 raise RuntimeError("Cannot find file with name " + file_path)
             query = "SELECT PeerId FROM PeerFile WHERE FileId=?"
             self.cur.execute(query, [res])
-            res = self.cur.fetchone()
+            res = self.cur.fetchall()
             if not res:
                 raise RuntimeError("Cannot find peer that has file " + file_path)
-            query = "SELECT Id, Name, Ip, Port, State FROM Peers WHERE Id=" + str(res[0])
+            # i am not proud of this line of code
+            query = ("SELECT Id, Name, Ip, Port, State FROM Peers WHERE Id IN (" + 
+                     str([i[0] for i in res])[1:-1] + ")")
             
         self.cur.execute(query)
         res = self.cur.fetchall()
+        print res
         if res is None:
             raise RuntimeError("Cannot get a peers list " + file_path)
         

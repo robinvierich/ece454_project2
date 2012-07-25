@@ -74,9 +74,9 @@ class Tracker(LocalPeer):
             communication.send_message(response, socket=client_socket)
             return
     
-        peer_ip = client_socket.getpeername()[0]
-        peer_port = disconnect_request.port
-        unreplicated = self.db.has_unreplicated_files(peer_ip, peer_port)
+        source_ip = client_socket.getpeername()[0]
+        source_port = disconnect_request.port
+        unreplicated = self.db.has_unreplicated_files(source_ip, source_port)
         logging.debug("Unreplicated files: " + str(unreplicated))
         response = messages.DisconnectResponse(unreplicated)
         communication.send_message(response, socket=client_socket)
@@ -103,26 +103,25 @@ class Tracker(LocalPeer):
     def handle_NEW_FILE_AVAILABLE(self, client_socket, new_file_available_msg):
         logging.debug("Handling new file available message")
         f = new_file_available_msg.file_model
-        peer_ip = client_socket.getpeername()[0]
-        peer_port = new_file_available_msg.port
-
-        if peer_ip == self.hostname and peer_port == self.port:
-            return
+        source_ip = client_socket.getpeername()[0]
+        source_port = new_file_available_msg.port
                 
         self.db.add_or_update_file(f)
-        self.db.add_file_peer_entry(f, peer_ip, peer_port)
+        self.db.add_file_peer_entry(f, source_ip, source_port)
+
+        if source_ip == self.hostname and source_port == self.port:
+            return        
         
         # for now, to find peers where the file should be replicated, 
         # just select peers that are able to replicate the file and 
         # that have the smallest fs size. limit the # by replication level
 
-        peers_list = self.db.get_peers_to_replicate_file(f, peer_ip, peer_port, 
+        peers_list = self.db.get_peers_to_replicate_file(f, source_ip, source_port, 
                                                          Tracker.REPLICATION_LEVEL)
 
         # broadcast
         logging.debug("Broadcasting message ")
         for i in peers_list:            
-            # TODO handle the tracker's case
             if i[1] == self.hostname and i[2] == self.port:
                 self._download_file(f.path)
                 continue
@@ -133,13 +132,11 @@ class Tracker(LocalPeer):
     # this either means that a peer now has this particular file
     # or the file has actually been changed
     def handle_FILE_CHANGED(self, client_socket, file_changed_msg):
+        logging.debug("Handling file change")
         remote_file = file_changed_msg.file_model
 
-        peer_ip = client_socket.getpeername()[0]
-        peer_port = file_changed_msg.port
-
-        if peer_ip == self.hostname and peer_port == self.port:
-            return
+        source_ip = client_socket.getpeername()[0]
+        source_port = file_changed_msg.port
 
         db_file = self.db.get_file(remote_file.path)
         # if checksums match, that means the file wasn't actually updated
@@ -148,17 +145,24 @@ class Tracker(LocalPeer):
             db_file.latest_version == remote_file.latest_version):
             
             logging.debug("A peer now has file " + remote_file.path)
-            self.db.add_file_peer_entry(remote_file, peer_ip, peer_port)
-        else:
+            self.db.add_file_peer_entry(remote_file, source_ip, source_port)
+        elif source_ip != self.hostname or source_port != self.port:
             # this is a file change. notify all peers that have the file
-            logging.debug("Peer's file (%s) was change. Going to notify all peers", 
+            logging.debug("Peer's file (%s) was changed. Going to notify peers", 
                           remote_file.path)
-            
-
-        # if the tracker has the file himself, update it locally as well
-        if self.db.peer_has_file(remote_file.path, self.hostname, self.port):
-            LocalPeer.handle_FILE_CHANGED(self, client_socket, file_changed_msg)
-            
+            peers_list = self.db.get_peers(remote_file.path)
+            # broadcast
+            logging.debug("Broadcasting message ")
+            print str(peers_list)
+            for p in peers_list:                            
+                if p.hostname == self.hostname and p.port == self.port:
+                    LocalPeer.handle_FILE_CHANGED(self, client_socket, file_changed_msg)
+                    continue
+                elif p.hostname == source_ip and p.port == source_port:
+                    continue
+                    
+                logging.debug("Broadcasting to peer %s %s", p.hostname, p.port)
+                communication.send_message(file_changed_msg, p)
 
     
     @check_connected

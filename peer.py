@@ -484,6 +484,12 @@ class LocalPeer(Peer):
         remote_file = file_changed_msg.file_model
         start_offset = file_changed_msg.start_offset
 
+        # if the curr checksum is the same as remote, don't do anything
+        db_file = self.db.get_file(remote_file.path)
+        if db_file.checksum == remote_file.checksum:
+            logging.debug("Received file change, but it appears that local file is up-to-date")
+            return
+
         peer_ip = client_socket.getpeername()[0]
         peer_port = file_changed_msg.port
 
@@ -502,7 +508,7 @@ class LocalPeer(Peer):
             # notify tracker that peer now has updated file
             file_changed_msg.port = self.port
             communication.send_message(file_changed_msg, self.tracker)
-            # TODO update local db
+            self.db.add_or_update_file(remote_file)
         else:
             logging.warning("Updated local file as per file changed message, but checksums don't " +
                             "match. Re-reqesting the file")
