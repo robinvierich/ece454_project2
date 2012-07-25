@@ -34,6 +34,9 @@ class Peer(object):
     
     def __str__(self):
         return "Peer. ip=%s port=%s" % (self.hostname, self.port)
+    
+    def __repr__(self, *args, **kwargs):
+        return self.__str__()
 
 def check_tracker_online(function):
     """A decorator that checks if the tracker is online
@@ -272,7 +275,7 @@ class LocalPeer(Peer):
         #for peer in peer_list:
         #    communication.send_message(file_msg, peer)
         
-    def _write_tracker_offline(self):
+    def write_tracker_offline(self):
         
         #record the write in a backlog
         
@@ -291,9 +294,10 @@ class LocalPeer(Peer):
         if (os.path.exists(file_path)):
             os.remove(file_path)
         
-        peer_list = self._get_peer_list(file_path)
+        peer_list = delete_response.peer_list
         
         delete_msg = messages.Delete(file_path)
+        communication.send_message(delete_msg, self.tracker)
         for peer in peer_list:
             communication.send_message(delete_msg, peer)
             
@@ -556,15 +560,27 @@ class LocalPeer(Peer):
     def handle_VALIDATE_CHECKSUM_RESPONSE(self, client_socket, msg):
         pass
     
-    def handle_DELETE_REQUEST(self, client_socket, msg):
+    def handle_DELETE_REQUEST(self, client_socket, delete_request):       
+        
         pass
     
     def handle_DELETE_RESPONSE(self, client_socket, msg):
         pass
     
-    def handle_DELETE(self, client_socket, msg):
-        file_path = msg.file_path
-        filesystem.delete_file(file_path)
+    def handle_DELETE(self, client_socket, delete_msg):
+        file_path = delete_msg.file_path
+        
+        f = self.db.get_file(file_path)
+        if not f:
+            return
+        
+        
+        for versionIdx in range(f.latest_version): 
+            local_file_path = filesystem.get_local_path(self, file_path, versionIdx + 1)
+            filesystem.delete_file(local_file_path)
+        
+        
+        self.db.delete_file(file_path)
     
     def handle_MOVE_REQUEST(self, client_socket, msg):
         pass

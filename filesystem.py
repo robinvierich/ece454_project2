@@ -30,7 +30,6 @@ def read_file(file_path, start_offset=None, length=-1):
     
 
 def delete_file(file_path):
-    
     if not os.path.exists(file_path):
         return
     
@@ -50,5 +49,5 @@ def get_local_path(peer, file_path, version=None):
             v = f.latest_version
         else:
             v = 1
-        
-    return os.path.join(peer.root_path, file_path) + "." + str(v)
+    local_path = os.path.join(peer.root_path, file_path) + "." + str(v)    
+    return local_path

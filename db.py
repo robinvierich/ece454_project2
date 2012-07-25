@@ -8,7 +8,6 @@ import Queue
 import threading
 import os.path
 from messages import FileModel
-#from msilib.schema import SelfReg
 
 def wait_for_commit_queue(function):
     """A decorator that waits for the commit queue to be empty, 
@@ -199,6 +198,12 @@ class PeerDb(object):
                             file_model.size]
                     ))
 
+    @wait_for_commit_queue
+    def delete_file(self, file_path):
+        query = "DELETE FROM Files WHERE FileName=?"
+        
+        self.q.put((query, (file_path,)))
+        
     # Delete everything from the files table and repopulate it with file_list
     @wait_for_commit_queue
     def clear_files_and_add_all(self, file_list):

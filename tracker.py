@@ -10,8 +10,6 @@ import messages
 import peer
 import filesystem
 
-#from Cheetah.Templates._SkeletonPage import True
-
 
 def check_connected(function):
     """A decorator that checks if the requesting peer is connected 
@@ -39,13 +37,14 @@ class Tracker(LocalPeer):
     HOSTNAME = "127.0.0.1"
     PORT = 12345
     REPLICATION_LEVEL = 100
+    DB_NAME = "tracker/tracker.db"
 
-    def __init__(self, port=PORT, hostname=HOSTNAME):
+    def __init__(self, port=PORT, hostname=HOSTNAME, db_name=DB_NAME):
         Tracker.PORT = port
         
         super(Tracker, self).__init__(hostname, port)
-        self.tracker = peer.Peer(self.hostname, self.port)
-        self.db = db.TrackerDb()
+        #self.tracker = peer.Peer(self.hostname, self.port)
+        self.db = db.TrackerDb(db_name)
         # add itself to the peers database
         self.db.add_or_update_peer(self.hostname, self.port, PeerState.ONLINE, 
                                    LocalPeer.MAX_FILE_SIZE, LocalPeer.MAX_FILE_SYS_SIZE, 
@@ -68,8 +67,6 @@ class Tracker(LocalPeer):
             logging.debug("Connection Request - wrong password")        
 
         communication.send_message(response, socket=client_socket)
-
-        # TODO If needed, prompt file replication on the newly connected peer
 
         if response.successful:
             # broadcast
@@ -146,16 +143,16 @@ class Tracker(LocalPeer):
         # for now, to find peers where the file should be replicated, 
         # just select peers that are able to replicate the file and 
         # that have the smallest fs size. limit the # by replication level
-
+        
         peers_list = self.db.get_peers_to_replicate_file(f, source_ip, source_port, 
                                                          Tracker.REPLICATION_LEVEL)
-        
+
         # broadcast
         logging.debug("Broadcasting message ")
         for p in peers_list:
             print p.port
             if p.hostname == self.hostname and p.port == self.port:
-                self._download_file(f.path)
+                self._download_file(f.path, peer_list=peers_list)
                 continue
             logging.debug("Broadcasting to peer %s %d", p.hostname, p.port)
             communication.send_message(new_file_available_msg, p)
@@ -193,7 +190,8 @@ class Tracker(LocalPeer):
                     continue
                 if p.state != PeerState.ONLINE:
                     continue
-                    
+                
+                
                 logging.debug("Broadcasting to peer %s %s", p.hostname, p.port)
                 communication.send_message(file_changed_msg, p)
 
@@ -217,18 +215,18 @@ class Tracker(LocalPeer):
     def handle_DELETE_REQUEST(self, client_socket, delete_request):
         file_path = delete_request.file_path
         
-        delete_response = messages.DeleteResponse(file_path, False)
+        can_delete = False
+        peer_list = []
         
         f = self.db.get_file(file_path)
         if f:
-            delete_response.can_delete = True
+            can_delete = True
+            peer_list = self.db.get_peers(file_path)
             
+        delete_response = messages.DeleteResponse(file_path, can_delete, peer_list)
+        
         communication.send_message(delete_response, socket=client_socket)
                 
-    
-    @check_connected
-    def handle_DELETE(self, client_socket, msg):
-        pass
 
     @check_connected    
     def handle_ARCHIVE_REQUEST(self, client_socket, archive_request):

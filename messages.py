@@ -152,10 +152,11 @@ class DeleteRequest(Message):
 
 # added (file_path) here
 class DeleteResponse(Message):
-    def __init__(self, file_path, can_delete):
+    def __init__(self, file_path, can_delete, peer_list):
         super(DeleteResponse, self).__init__(MessageType.DELETE_RESPONSE)
         self.file_path = file_path 
         self.can_delete = can_delete
+        self.peer_list = peer_list
 
 # doc says (file_id), changed to (file_path)
 class Delete(Message):
