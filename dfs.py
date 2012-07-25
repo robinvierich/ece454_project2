@@ -127,6 +127,16 @@ def main():
             local_peer.connect(LocalPeer.PASSWORD)
         elif re.match(r'quit', inp):
             sys.exit()
+        elif re.match(r'ls', inp):
+            for f in local_peer.ls():
+                print "%s\n\tSize: %d LastVer: %d" % (f.path, f.size, f.latest_version)
+        elif re.match(r'arch', inp):
+            m = re.search(r'\s[^\s]+', inp)
+            if m is None:
+                print "You must enter a file name"
+                continue
+            f = re.search(r'[^\s]+', m.group()).group()
+            print str(local_peer.archive(f))
 
 
 # tests

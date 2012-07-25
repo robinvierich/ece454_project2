@@ -226,8 +226,12 @@ class LocalPeer(Peer):
     def write(self, file_path, new_data, start_offset=None):
         f = self.db.get_file(file_path)
         
-        is_new_file = not bool(f)
-        local_path = filesystem.get_local_path(self, file_path)
+        if f is not None:
+            is_new_file = False
+            local_path = filesystem.get_local_path(self, file_path, f.latest_version)
+        else:
+            is_new_file = True
+            local_path = filesystem.get_local_path(self, file_path)
         
         logging.info("Writing file %s to %s. New file? - %s", 
                         file_path, local_path, is_new_file)
@@ -582,7 +586,7 @@ class LocalPeer(Peer):
         
     def handle_LIST(self, client_socket, msg):
         pass
-    def handle_ARCHIVE_REQUEST(self, client_socket, msg):
+    def handle_ARCHIVE_REQUEST(self, client_socket, msg):        
         pass
     def handle_ARCHIVE_RESPONSE(self, client_socket, msg):
         pass
@@ -596,9 +600,16 @@ class LocalPeer(Peer):
         f = self.db.get_file(file_path)
         if not f:
             return
+        if f.latest_version == new_version:
+            return
+        local_file_path = filesystem.get_local_path(self, file_path, f.latest_version)
+        file_data = filesystem.read_file(local_file_path)
         
         f.latest_version = new_version
         self.db.add_or_update_file(f)
+        
+        local_file_path = filesystem.get_local_path(self, file_path, f.latest_version)
+        filesystem.write_file(local_file_path, file_data)
     
 class AcceptorThread(threading.Thread):
     def __init__(self, peer):

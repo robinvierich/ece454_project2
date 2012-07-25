@@ -8,6 +8,8 @@ from peer import LocalPeer, PeerState
 import logging
 import messages
 import peer
+import filesystem
+
 #from Cheetah.Templates._SkeletonPage import True
 
 
@@ -240,8 +242,9 @@ class Tracker(LocalPeer):
             communication.send_message(response, socket=client_socket)
             return
         
+        self.db.add_version(f)
         f.latest_version += 1
-        self.db.add_or_update_file(f)
+        self.db.add_or_update_file(f)        
         
         response.archived = True
         communication.send_message(response, socket=client_socket)
@@ -250,6 +253,15 @@ class Tracker(LocalPeer):
         
         # notify all peers that have the file about the new version
         for peer in peers_list:
+            if peer.hostname == self.hostname and peer.port == self.port:
+                local_file_path = filesystem.get_local_path(self, file_path, f.latest_version-1)
+                file_data = filesystem.read_file(local_file_path)
+        
+                local_file_path = filesystem.get_local_path(self, file_path, f.latest_version)
+                filesystem.write_file(local_file_path, file_data)
+        
+            if peer.state == PeerState.OFFLINE:
+                continue
             file_archived_msg = messages.FileArchived(f.path, f.latest_version)
             communication.send_message(file_archived_msg, peer)
             

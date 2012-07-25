@@ -180,8 +180,23 @@ class PeerDb(object):
         self.q.put((query, (f.path, 
                             str(f.is_dir),
                             sqlite3.Binary(f.checksum), 
-                            str(f.size),
-                            str(f.latest_version))
+                            f.size,
+                            f.latest_version)
+                    ))
+
+    @wait_for_commit_queue        
+    def add_version(self, file_model):      
+        file_id = self.get_file_id(file_model.path)
+        if file_id is None:
+            return
+        query = ("INSERT INTO Version " +
+                 "(FileId, VersionNumber, FileSize, Checksum) " +
+                 "VALUES (?, ?, ?, ?)")
+        
+        self.q.put((query, [file_id, 
+                            file_model.latest_version,
+                            sqlite3.Binary(file_model.checksum), 
+                            file_model.size]
                     ))
 
     # Delete everything from the files table and repopulate it with file_list
