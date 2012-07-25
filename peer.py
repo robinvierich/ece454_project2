@@ -290,10 +290,10 @@ class LocalPeer(Peer):
         if (os.path.exists(file_path)):
             os.remove(file_path)
         
-        peer_list = self._get_peer_list(file_path)
-        peer_list.append(self.tracker)
+        peer_list = delete_response.peer_list
         
         delete_msg = messages.Delete(file_path)
+        communication.send_message(delete_msg, self.tracker)
         for peer in peer_list:
             communication.send_message(delete_msg, peer)
             
@@ -567,6 +567,9 @@ class LocalPeer(Peer):
         file_path = delete_msg.file_path
         
         f = self.db.get_file(file_path)
+        if not f:
+            return
+        
         
         for versionIdx in range(f.latest_version): 
             local_file_path = filesystem.get_local_path(self, file_path, versionIdx + 1)

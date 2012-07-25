@@ -183,6 +183,7 @@ class PeerDb(object):
                             str(f.latest_version))
                     ))
 
+    @wait_for_commit_queue
     def delete_file(self, file_path):
         query = "DELETE FROM Files WHERE FileName=?"
         

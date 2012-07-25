@@ -70,6 +70,8 @@ def run_tests():
                         format="%(threadName)s: %(message)s (%(filename)s.%(funcName)s())")
     
     print "DFS Test"
+       
+    
     print "Starting Tracker"
     
     tracker = Tracker()
