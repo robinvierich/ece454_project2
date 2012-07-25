@@ -8,7 +8,7 @@ import Queue
 import threading
 import os.path
 from messages import FileModel
-from msilib.schema import SelfReg
+#from msilib.schema import SelfReg
 
 def wait_for_commit_queue(function):
     """A decorator that waits for the commit queue to be empty, 
@@ -139,8 +139,7 @@ class PeerDb(object):
 
         if file_id is not None:
             query = "SELECT Count(*) FROM LocalPeerFiles WHERE FileId=?"
-            self.excute_now_and_fetch_one(query, [file_id])
-            res = self.cur.fetchone()
+            res = self.excute_now_and_fetch_one(query, [file_id])
             if res[0] > 0:
                 return True
         return False
@@ -372,11 +371,11 @@ class TrackerDb(PeerDb):
                      "WHERE Id!=? AND State=?")
             #self.cur.execute(query, [peer_id, PeerState.ONLINE, file_model.size, 
             #                         file_model.size])
-            res self.excute_now_and_fetch_all(query, [peer_id, PeerState.ONLINE])
+            res = self.excute_now_and_fetch_all(query, [peer_id, PeerState.ONLINE])
         else:
             query = ("SELECT Id, Name, Ip, Port, State FROM Peers WHERE " +
                      "State=?")
-            res self.excute_now_and_fetch_all(query, [PeerState.ONLINE])
+            res = self.excute_now_and_fetch_all(query, [PeerState.ONLINE])
                 
             #query = ("SELECT Id, Ip, Port FROM Peers WHERE " +
             #         "State=? AND MaxFileSize>=? " +
@@ -385,7 +384,6 @@ class TrackerDb(PeerDb):
             #self.cur.execute(query, [PeerState.ONLINE, file_model.size, 
             #                         file_model.size])
 
-        res = self.cur.fetchall()
         from peer import Peer            
         peer_list = [Peer(db_peer[2], db_peer[3], db_peer[1], db_peer[4]) for db_peer in res]
 

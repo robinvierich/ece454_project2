@@ -147,10 +147,11 @@ class Tracker(LocalPeer):
 
         peers_list = self.db.get_peers_to_replicate_file(f, source_ip, source_port, 
                                                          Tracker.REPLICATION_LEVEL)
-
+        
         # broadcast
         logging.debug("Broadcasting message ")
-        for p in peers_list:            
+        for p in peers_list:
+            print p.port
             if p.hostname == self.hostname and p.port == self.port:
                 self._download_file(f.path)
                 continue
@@ -184,7 +185,7 @@ class Tracker(LocalPeer):
             print str(peers_list)
             for p in peers_list:                            
                 if p.hostname == self.hostname and p.port == self.port:
-                    super(Tracker, self).handle_FILE_CHANGED(self, client_socket, file_changed_msg)
+                    super(Tracker, self).handle_FILE_CHANGED(client_socket, file_changed_msg)
                     continue
                 if p.hostname == source_ip and p.port == source_port:
                     continue
