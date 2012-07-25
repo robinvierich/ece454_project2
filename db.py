@@ -232,7 +232,7 @@ class TrackerDb(PeerDb):
         return res[0]
         
     @wait_for_commit_queue        
-    def get_peers_with_file(self, file_path=None):
+    def get_peers(self, file_path=None):
         if file_path is None:
             # just give them the list of all peers
             query = "SELECT Id, Name, Ip, Port, State FROM Peers"
@@ -375,7 +375,7 @@ class LocalPeerDb(PeerDb):
             self.q.put((query, (p.name, p.hostname, p.port, p.state)))
         
     @wait_for_commit_queue
-    def get_peers_with_file(self):
+    def get_peers(self):
         # just give them the list of all peers
         query = "SELECT Id, Name, Ip, Port, State FROM Peers"
             
@@ -389,6 +389,7 @@ class DbThread(threading.Thread):
     def __init__(self, db):            
         super(DbThread, self).__init__()
         self.db = db
+        self.name = "DBThread"
         logging.debug("Connecting to the database")
         db.connection = sqlite3.connect(db.db_name, check_same_thread=False)
         db.cur = db.connection.cursor()    
@@ -398,7 +399,7 @@ class DbThread(threading.Thread):
         threading.Thread.setDaemon(self, True)
     
     def run(self):
-        logging.debug("Spwaned a Database Thread")
+        logging.debug("Spawned a Database Thread")
         while self.alive.is_set():
             item = self.db.q.get(block=True)            
             logging.debug("Performing a db statement: " + item[0] + " " + str(item[1]))
@@ -409,7 +410,7 @@ class DbThread(threading.Thread):
                 self.db.cur.execute(item[0], item[1])
             self.db.connection.commit()
             self.db.q.task_done()
-        logging.debug("DbThread finising run")
+        logging.debug("DbThread finishing run")
 
     def join(self, timeout=None):
         logging.debug("Ending thread")

@@ -7,6 +7,8 @@ import logging
 
 import os.path
 
+peer2 = None
+
 def test_connect(pwd="12345"):
     print "Running test_connect, pwd = %s" % pwd
     successful = dfs.connect(password=pwd)
@@ -38,24 +40,45 @@ def test_ls(dir_path=None):
     
     ls_result = dfs.ls(dir_path)
     
-    print "ls() result:"
+    print "dfs ls() result:"
+    print ls_result
+    
+    ls_result = peer2.ls(dir_path)
+    
+    print "peer2 ls() result:"
     print ls_result
 
+def test_archive(testfile_path = "dfs_test.txt"):
+    print "testing archive. file_path = %s" % testfile_path
+    
+    archive_result = dfs.archive(testfile_path)
+    
+    print "dfs archive() result:"
+    print archive_result
+    
+    
+    
 def run_tests():
-    logging.basicConfig(level=logging.DEBUG, 
+    global peer2
+    
+    logging.basicConfig(level=logging.INFO, 
                         format="%(filename)s.%(funcName)s(): %(message)s")
     
     print "DFS Test"
     print "Starting Tracker"
     tracker = Tracker()
     
-    dfs.init_local_peer(Tracker.HOSTNAME, Tracker.PORT)
+    dfs.init_local_peer(Tracker.HOSTNAME, Tracker.PORT, "127.0.0.1")
     dfs.local_peer.root_path="./peer1/"
     
-    peer2 = LocalPeer(port = LocalPeer.PORT + 1, root_path="./peer2/", db_name="peer2_db.db")
+    peer2 = LocalPeer(hostname="localhost", port=LocalPeer.PORT + 1,  root_path="./peer2/", db_name="peer2_db.db")
     
     test_write()
     test_ls()
+    test_archive()
+    
+    while True:
+        pass
 
 if __name__ == "__main__":
     run_tests()

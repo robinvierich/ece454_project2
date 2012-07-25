@@ -31,14 +31,14 @@ def check_connected(function):
     return wrapper
 
 class Tracker(LocalPeer):
-    
     HOSTNAME = "localhost"
     PORT = 12345
     REPLICATION_LEVEL = 100
 
-    def __init__(self, port=PORT, ip=HOSTNAME):
-        super(Tracker, self).__init__(hostname=ip, port=port)
+    def __init__(self, port=PORT, hostname=HOSTNAME):
         Tracker.PORT = port
+        
+        super(Tracker, self).__init__(hostname, port)
         self.db = db.TrackerDb()
         # add itself to the peers database
         self.db.add_peer(self.hostname, self.port, PeerState.ONLINE, 
@@ -88,11 +88,11 @@ class Tracker(LocalPeer):
         
         peer_list = []
         try:
-            peer_list = self.db.get_peers_with_file(file_path)
+            peer_list = self.db.get_peers(file_path)
         except RuntimeError, e:
             logging.debug("couldn't get peer list: " + str(e))
     
-        logging.debug("Sending the peer list:\n" + str(peer_list))
+        logging.debug("Sending the peer list:\n%s" % [str(p) for p in peer_list])
 
         response = messages.PeerList(peer_list)
         communication.send_message(response, socket=client_socket)
@@ -168,7 +168,7 @@ class Tracker(LocalPeer):
         response.archived = True
         communication.send_message(response, socket=client_socket)
                 
-        peers_list = self.db.get_peers_with_file(file_path)
+        peers_list = self.db.get_peers(file_path)
         
         # notify all peers that have the file about the new version
         for peer in peers_list:

@@ -30,7 +30,9 @@ class Peer(object):
         self.port = port
         self.name = name
         self.state = state
-        
+    
+    def __str__(self):
+        return "Peer. ip=%s port=%s" % (self.hostname, self.port)
 
 def check_tracker_online(function):
     """A decorator that checks if the tracker is online
@@ -84,10 +86,10 @@ class LocalPeer(Peer):
                 self._server_socket.bind((self.hostname, self.port))
                 self._server_socket.listen(5)
                 connected = True
-                logging.debug("Listening on port " + str(self.port))
+                logging.info("Server started. Listening on port %i" % self.port)
             except:
-                logging.debug("Couldn't listen on port " + str(self.port) + 
-                              ". Trying " + str(self.port + 1))                              
+                logging.error("Couldn't listen on port %i" % self.port + 
+                              ". Trying %i" % self.port + 1)                              
                 self.port += 1
         
     def connect(self, password):
@@ -99,7 +101,7 @@ class LocalPeer(Peer):
         
         successful = response.successful
         if successful:
-            logging.debug("Connection to tracker successful")
+            logging.info("%s : Connection to tracker successful" % self)
             self.start_accepting_connections()
             self.state = PeerState.ONLINE
             # get peers and file lists
@@ -110,16 +112,16 @@ class LocalPeer(Peer):
             for f in file_list:
                 self.db.add_or_update_file(f)
         else:
-            logging.debug("Connection to tracker unsuccessful")
+            logging.error("%s : Connection to tracker unsuccessful" % self)
                 
         return successful
 
     def disconnect(self,check_for_unreplicated_files=True):
-        logging.debug("Asking tracker to disconnect")
+        logging.info("Asking tracker to disconnect")
         disconnect_msg = messages.DisconnectRequest(check_for_unreplicated_files, self.port)
         communication.send_message(disconnect_msg, self.tracker)
         response = communication.recv_message(self.tracker)
-        logging.debug("Response received. Should wait? " + str(response.should_wait))
+        logging.info("Response received. Should wait? " + str(response.should_wait))
         while (response.should_wait):
             # TODO
             # So it is a tracker's responsibility to notify peer when it is ok to disconnect?
@@ -156,11 +158,11 @@ class LocalPeer(Peer):
             new_checksum = checksum.calc_file_checksum(local_path)
         
             if new_checksum == golden_checksum:
-                logging.debug("File donwnloaded successfully! File name: " + f.path)
+                logging.info("File downloaded successfully! File name: " + f.path)
                 return
             else:
-                logging.debug("File donwnloaded but checksum doesn't match. " +
-                              "Going to try again. File name: " + f.path)
+                logging.error("File downloaded but checksum doesn't match. " +
+                              "Going to try again. File name: %s" % f.path)
                 attempt += 1
         # TODO notify tracker!
 
@@ -195,7 +197,7 @@ class LocalPeer(Peer):
         if file_data != None:
             return file_data
         
-        peer_list = self.db.get_peers_with_file()
+        peer_list = self.db.get_peers()
         
         self._download_file(file_path, peer_list)
         
@@ -206,9 +208,10 @@ class LocalPeer(Peer):
         f = self.db.get_file(file_path)
         
         is_new_file = not bool(f)
-        logging.debug("Writing a file " + file_path + ". New file? - " + str(is_new_file))
-        
         local_path = filesystem.get_local_path(self, file_path)
+        
+        logging.info("Writing file %s to %s. New file? - %s", 
+                        file_path, local_path, is_new_file)
         
         filesystem.write_file(local_path, new_data, start_offset)
         
@@ -314,7 +317,7 @@ class LocalPeer(Peer):
         return self._server_socket
 
     def add_file_to_db(self, path):
-        logging.debug("Adding a new file to db: " + path)
+        logging.info("Adding a new file to db: " + path)
 
         isDir = 1 if os.path.isdir(path) else 0
         size = os.path.getsize(path)
@@ -330,13 +333,13 @@ class LocalPeer(Peer):
     #TODO: Probably makes more sense to make all these functions part of the peer class
     
     def _get_peer_list(self, file_path):
-        logging.debug("Requesting a peers list")
+        logging.info("Requesting a peers list")
         peer_list_request = messages.PeerListRequest(file_path)
         communication.send_message(peer_list_request, self.tracker)
         
         peer_list_response = communication.recv_message(self.tracker)
         peer_list = peer_list_response.peer_list
-        logging.debug("Received a peers list:\n" + str(peer_list))
+        logging.info("Received a peers list:\n%s" % [str(p) for p in peer_list])
         return peer_list
     
     def _file_model_from_file(self, f):
@@ -349,6 +352,7 @@ class LocalPeer(Peer):
     def get_handler_method_index(self):
         return {MessageType.ARCHIVE_REQUEST : self.handle_ARCHIVE_REQUEST,
                 MessageType.PEER_LIST_REQUEST : self.handle_PEER_LIST_REQUEST,
+                MessageType.PEER_LIST : self.handle_PEER_LIST,
                 MessageType.FILE_DOWNLOAD_REQUEST : self.handle_FILE_DOWNLOAD_REQUEST,
                 MessageType.FILE_DOWNLOAD_DECLINE : self.handle_FILE_DOWNLOAD_DECLINE,
                 MessageType.FILE_DATA : self.handle_FILE_DATA,
@@ -398,10 +402,15 @@ class LocalPeer(Peer):
     # not used
     def handle_PEER_LIST_REQUEST(self, client_socket, msg):
         pass
-
+    
+    def handle_PEER_LIST(self, client_socket, peer_list_msg):
+        peer_list = peer_list_msg.peer_list
+        
+        self.db.clear_peers_and_insert(peer_list)
+        
 
     def handle_FILE_DOWNLOAD_REQUEST(self, client_socket, msg):        
-        logging.debug("Handling the file download request for file " + msg.file_path)
+        logging.info("Handling the file download request for file " + msg.file_path)
         # TODO Need to be aware of versioning here.
         local_path = filesystem.get_local_path(self, msg.file_path)
         file_data = filesystem.read_file(local_path)
@@ -419,8 +428,8 @@ class LocalPeer(Peer):
     
     
     def handle_FILE_DATA(self, client_socket, file_data_msg):
-        logging.debug("Received file data for file " + file_data_msg.file_model.path)
-        logging.debug("File data: " + file_data_msg.file_model.data)
+        logging.info("Received file data for file " + file_data_msg.file_model.path)
+        logging.info("File data: " + file_data_msg.file_model.data)
         # save file
         f = file_data_msg.file_model
         start_offset = file_data_msg.start_offset
@@ -544,6 +553,7 @@ class AcceptorThread(threading.Thread):
 class HandlerThread(threading.Thread):
     def __init__(self, peer, client_socket):            
         super(HandlerThread, self).__init__()
+        self.daemon = False
         self.name = type(peer).__name__ + "_Handler"
         self._peer = peer
         self._client_socket = client_socket    
