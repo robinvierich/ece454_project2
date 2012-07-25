@@ -208,8 +208,17 @@ class Tracker(LocalPeer):
         communication.send_message(response, socket=client_socket)
     
     @check_connected
-    def handle_DELETE_REQUEST(self, client_socket, msg):
-        pass
+    def handle_DELETE_REQUEST(self, client_socket, delete_request):
+        file_path = delete_request.file_path
+        
+        delete_response = messages.DeleteResponse(file_path, False)
+        
+        f = self.db.get_file(file_path)
+        if f:
+            delete_response.can_delete = True
+            
+        communication.send_message(delete_response, socket=client_socket)
+                
     
     @check_connected
     def handle_DELETE(self, client_socket, msg):

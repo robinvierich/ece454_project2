@@ -100,9 +100,7 @@ class PeerDb(object):
                  "FROM Files")
         #query = "select * from Files"
         
-        res = None
-        with self.dblock:
-            res = self.excute_now_and_fetch_all(query)
+        res = self.excute_now_and_fetch_all(query)
         #file_model_list = [FileModel(*f) for f in res if f]
         file_model_list = []
         for f in res:
