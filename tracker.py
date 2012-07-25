@@ -23,8 +23,10 @@ def check_connected(function):
         
         peer_hostname = peer_endpoint[0]
         
-        if tracker.db.get_peer_state(peer_hostname) != PeerState.ONLINE:
-            return
+        # TODO Need to know peer's port to identify it. Gostname is not enough
+
+        #if tracker.db.get_peer_state(peer_hostname) != PeerState.ONLINE:
+        #    return
             
         return_value = function(*args, **kwargs)
         return return_value
@@ -43,8 +45,9 @@ class Tracker(LocalPeer):
         self.tracker = peer.Peer(self.hostname, self.port)
         self.db = db.TrackerDb()
         # add itself to the peers database
-        self.db.add_peer(self.hostname, self.port, PeerState.ONLINE, 
-                         LocalPeer.MAX_FILE_SIZE, LocalPeer.MAX_FILE_SYS_SIZE, 0, block=True)
+        self.db.add_or_update_peer(self.hostname, self.port, PeerState.ONLINE, 
+                                   LocalPeer.MAX_FILE_SIZE, LocalPeer.MAX_FILE_SYS_SIZE, 
+                                   0, block=True)
         self.start_accepting_connections()
 
     def handle_CONNECT_REQUEST(self, client_socket, msg):        
@@ -55,33 +58,57 @@ class Tracker(LocalPeer):
             response.successful = True
 
             peer_endpoint = client_socket.getpeername()
-            logging.debug("Peer address: " + str(peer_endpoint[0]) + " " + str(msg.port)) 
-            self.db.add_peer(peer_endpoint[0], msg.port, peer.PeerState.ONLINE, msg.maxFileSize,
-                             msg.maxFileSysSize, msg.currFileSysSize)
+            logging.debug("Peer address: %s %d", str(peer_endpoint[0]), msg.port) 
+            self.db.add_or_update_peer(peer_endpoint[0], msg.port, peer.PeerState.ONLINE, 
+                                        msg.maxFileSize, msg.maxFileSysSize, msg.currFileSysSize)
             
         else:
             logging.debug("Connection Request - wrong password")        
 
         communication.send_message(response, socket=client_socket)
 
-        # TODO broadcast event
-    
+        if response.successful:
+            # broadcast
+            peers_list = self.db.get_peers()
+            logging.debug("Broadcasting message ")
+            for p in peers_list:            
+                if p.hostname == self.hostname and p.port == self.port:
+                    continue
+                if p.state != PeerState.ONLINE:
+                    continue
+                logging.debug("Broadcasting to peer %s, %d", p.hostname, p.port)
+                communication.send_message(msg, p)
+            
     @check_connected
     def handle_DISCONNECT_REQUEST(self, client_socket, disconnect_request):
         logging.debug("Handling disconnect request")
-        if not disconnect_request.check_for_unreplicated_files:
-            response = messages.DisconnectResponse(False)
-            communication.send_message(response, socket=client_socket)
-            return
-    
         source_ip = client_socket.getpeername()[0]
         source_port = disconnect_request.port
-        unreplicated = self.db.has_unreplicated_files(source_ip, source_port)
-        logging.debug("Unreplicated files: " + str(unreplicated))
-        response = messages.DisconnectResponse(unreplicated)
+        if not disconnect_request.check_for_unreplicated_files:
+            response = messages.DisconnectResponse(False)
+            
+        else:            
+            unreplicated = self.db.has_unreplicated_files(source_ip, source_port)
+            logging.debug("Unreplicated files: " + str(unreplicated))
+            response = messages.DisconnectResponse(unreplicated)
+
         communication.send_message(response, socket=client_socket)
 
-        # TODO broadcast event
+        if (not disconnect_request.check_for_unreplicated_files or
+                (not unreplicated and disconnect_request.check_for_unreplicated_files)):
+                                
+            # update db
+            self.db.update_peer_state(source_ip, source_port, PeerState.OFFLINE)
+            # broadcast
+            peers_list = self.db.get_peers()
+            logging.debug("Broadcasting message ")
+            for p in peers_list:            
+                if p.hostname == self.hostname and p.port == self.port:
+                    continue
+                if p.state != PeerState.ONLINE:
+                    continue
+                logging.debug("Broadcasting to peer %s, %d", p.hostname, p.port)
+                communication.send_message(disconnect_request, p)
     
     @check_connected
     def handle_PEER_LIST_REQUEST(self, client_socket, peer_list_request):

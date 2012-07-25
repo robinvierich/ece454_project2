@@ -99,7 +99,30 @@ class PeerDb(object):
         else:
             return None
 
-    # TODO add parents
+    @wait_for_commit_queue
+    def add_local_file(self, file_name):
+        logging.debug("Insert or update LocalFiles")
+        file_id = self.get_file_id(file_name)       
+        
+        if file_id is not None:
+            if not self.check_file_exists_locally(file_name):
+                # add a new entry
+                query = "INSERT INTO LocalPeerFiles (FileId) VALUES (?)"
+                self.q.put((query, [file_id]))
+
+    @wait_for_commit_queue
+    def check_file_exists_locally(self, file_name):
+        logging.debug("Checking the local files for %s", file_name)
+        file_id = self.get_file_id(file_name)
+
+        if file_id is not None:
+            query = "SELECT Count(*) FROM LocalPeerFiles WHERE FileId=?"
+            self.cur.execute(query, [file_id])
+            res = self.cur.fetchone()
+            if res[0] > 0:
+                return True
+        return False
+
     @wait_for_commit_queue
     def add_or_update_file(self, file_model):
         logging.debug("Insert or update on Files table")
@@ -123,6 +146,7 @@ class PeerDb(object):
             query = ("UPDATE Files SET FileName=?, IsDirectory=?, Size=?, GoldenChecksum=?, " +
                      "LastVersionNumber=? WHERE Id=?")
             self.q.put((query, [file_name, is_directory, size, sqlite3.Binary(checksum), last_ver_num, res]))
+
 
     @wait_for_commit_queue        
     def add_file(self, file_model):      
@@ -167,6 +191,14 @@ class PeerDb(object):
             return res[0]
         return None
 
+    @wait_for_commit_queue            
+    def update_peer_state(self, ip, port, state):
+        logging.debug("Updating peer's state")
+        res = self.get_peer_id(ip, port)
+        if res is not None:
+            query = ("UPDATE Peers SET state=? WHERE Id=?")
+            self.q.put((query, [state, res]))
+
 class TrackerDb(PeerDb):    
     DB_FILE = "tracker_db.db"
     def __init__(self, db_name=DB_FILE):
@@ -207,7 +239,8 @@ class TrackerDb(PeerDb):
                 self.q.put(("CREATE TABLE PeerExcludedFiles(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                             "PeerId INT, FileId INT, FileNamePattern TEXT)", []))
     @wait_for_commit_queue            
-    def add_peer(self, ip, port, state, maxFileSize, maxFileSysSize, currFileSysSize, name="", block=False):
+    def add_or_update_peer(self, ip, port, state, maxFileSize, maxFileSysSize, 
+                            currFileSysSize, name="", block=False):
         logging.debug("Adding a new entry in Peers table")
         res = self.get_peer_id(ip, port)
         # peer already exists. Update it, else make a new entry
@@ -224,17 +257,17 @@ class TrackerDb(PeerDb):
                      "VALUES (?, ?, ?, ?, ?, ?, ?)")
             
             if block:
-                self.cur.execute(query, [name, ip, port, str(state), str(maxFileSize),
-                                         str(maxFileSysSize), str(currFileSysSize)])
+                self.cur.execute(query, [name, ip, port, state, maxFileSize,
+                                         maxFileSysSize, currFileSysSize])
             else:
-                self.q.put((query, [name, ip, port, str(state), str(maxFileSize),
-                                str(maxFileSysSize), str(currFileSysSize)]), [])
+                self.q.put((query, [name, ip, port, state, maxFileSize,
+                                    maxFileSysSize, currFileSysSize]))
 
     @wait_for_commit_queue
-    def get_peer_state(self, ip):
+    def get_peer_state(self, ip, port):
         query = ("SELECT State FROM Peers " +
-                 "WHERE ip='%s'" % ip)
-        self.cur.execute(query)
+                 "WHERE Ip=? AND Port=?")
+        self.cur.execute(query, [ip, port])
         res = self.cur.fetchone()
         
         return res[0]
@@ -409,6 +442,23 @@ class LocalPeerDb(PeerDb):
         if not res:
             raise RuntimeError("Cannot get a peers list (LocalPeerDb)")
         return res
+
+    @wait_for_commit_queue            
+    def add_or_update_peer(self, ip, port, state, name=""):
+        logging.debug("Adding a new entry in Peers table")
+        res = self.get_peer_id(ip, port)
+        # peer already exists. Update it, else make a new entry
+        if res is not None:
+            query = ("UPDATE Peers SET state=?, name=? WHERE Id=?")
+            self.q.put((query, [state, name, res]))
+        else:
+            query = ("INSERT INTO Peers " +
+                     "(Name, Ip, Port, State) " +
+                     "VALUES (?, ?, ?, ?)")
+            
+            self.q.put((query, [name, ip, port, state]))
+
+
 
 dblock = threading.Lock()
 

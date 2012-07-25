@@ -110,6 +110,7 @@ class LocalPeer(Peer):
             file_list = self.ls()
             for f in file_list:
                 self.db.add_or_update_file(f)
+            # TODO Check local files and download changes
         else:
             logging.error("%s : Connection to tracker unsuccessful" % self)
                 
@@ -159,6 +160,7 @@ class LocalPeer(Peer):
                 logging.info("File downloaded successfully! Going to notify tracker. File name: " + f.path)
                 
                 self.db.add_or_update_file(f)
+                self.db.add_local_file(f.path)
                 f.data = None
                 response = messages.FileChanged(f, self.port)
                 communication.send_message(response, self.tracker)
@@ -235,13 +237,8 @@ class LocalPeer(Peer):
         if is_new_file:                                                
             file_msg = messages.NewFileAvailable(file_model, self.port)
         else:
-            # TODO Update the local db
-            print "OLD CHECKSUM: " + f.checksum
-            print "NEW CHECKSUM: " + new_checksum
-            if new_checksum == f.checksum:
-                print "MATCH"
-            else:
-                print "NOT MACTH"
+            self.db.add_or_update_file(f)
+            self.db.add_local_file(f.path)
             f.checksum = new_checksum
             f.size = new_size
             file_msg = messages.FileChanged(file_model, self.port, start_offset)
@@ -415,16 +412,22 @@ class LocalPeer(Peer):
                 MessageType.ARCHIVE_RESPONSE : self.handle_ARCHIVE_RESPONSE,
                 MessageType.FILE_ARCHIVED : self.handle_FILE_ARCHIVED,
                 }
-    # not used - done through blocking in connect()
+
     def handle_CONNECT_REQUEST(self, client_socket, msg):
-        pass
+        source_ip = client_socket.getpeername()[0]
+        source_port = msg.port
+        self.db.add_or_update_peer(source_ip, source_port, PeerState.ONLINE)
+            
+        
     # not used - tracker
     def handle_CONNECT_RESPONSE(self, client_socket, msg):
         pass
 
-    # not used
     def handle_DISCONNECT_REQUEST(self, client_socket, msg):
-        pass
+        source_ip = client_socket.getpeername()[0]
+        source_port = msg.port
+        self.db.update_peer_state(source_ip, source_port, PeerState.OFFLINE)
+
     
     # not used
     def handle_DISCONNECT_RESPONSE(self, client_socket, msg):

@@ -2,6 +2,10 @@
 db_test.py - Test file for db.by
 """
 
+#################################################
+# THIS FILE HASN'T BEEN UPDATED TO WORK WITH LATEST CHANGES IN DB!!!
+#####################
+
 from db import TrackerDb
 import os
 import logging
