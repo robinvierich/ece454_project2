@@ -5,6 +5,7 @@ db_test.py - Test file for db.by
 from db import TrackerDb
 import os
 import logging
+from messages import FileModel
 
 def run():
     failed = False
@@ -18,7 +19,13 @@ def run():
         os.remove(TrackerDb.DB_FILE)
     trackerDb = TrackerDb()
     
-    trackerDb.add_file("file1.txt", 1, 12345, "2l3kn4l23kn4", 1)    
+    f = FileModel(path="file1.txt", 
+                  is_dir=False, 
+                  size=12345, 
+                  checksum="2l3kn4l23kn4", 
+                  latest_version=1)
+    
+    trackerDb.add_file(f)    
 
     query = "SELECT count(*) FROM Files WHERE FileName='file1.txt'"
     trackerDb.cur.execute(query)

@@ -83,7 +83,7 @@ class PeerDb(object):
             for f in res:
                 if f is None:
                     continue
-                # can't pickele buffer objects which GoldenChecksums are. Need to conv to str
+                # can't pickle buffer objects which GoldenChecksums are. Need to conv to str
                 file_model_list.append(FileModel(f[0], f[1], str(f[2]), f[3], f[4]))
             return file_model_list
 
@@ -236,7 +236,7 @@ class TrackerDb(PeerDb):
             return res[0]
         
     @wait_for_commit_queue        
-    def get_peer_list(self, file_path=None):
+    def get_peers_with_file(self, file_path=None):
         with self.connection:
             if file_path is None:
                 # just give them the list of all peers
@@ -383,7 +383,7 @@ class LocalPeerDb(PeerDb):
             self.q.put((query, (p.name, p.hostname, p.port, p.state)))
         
     @wait_for_commit_queue
-    def get_peer_list(self):
+    def get_peers_with_file(self):
         with self.connection:
             # just give them the list of all peers
             query = "SELECT Id, Name, Ip, Port, State FROM Peers"

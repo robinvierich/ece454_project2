@@ -145,9 +145,13 @@ class LocalPeer(Peer):
             
             if response == None:
                 return None
-        
-            filesystem.write_file(self.get_local_path(file_path), response.file_data)
-            data = filesystem.read_file(file_path)
+            
+            f = response.file_model
+            version = f.latest_version
+            local_path = filesystem.get_local_path(self, file_path, version)
+            
+            filesystem.write_file(local_path, f.data)
+            data = filesystem.read_file(local_path)
             new_checksum = checksum.calc_checksum(data)
         
             if new_checksum == response.file_checksum:
@@ -156,9 +160,7 @@ class LocalPeer(Peer):
                 attempt += 1
         
         raise Exception("download_file failed - max attempts reached")
-    
-    def get_local_path(self, file_path):
-        return os.path.join(self.root_path, file_path)
+       
     
     # File Operations
     def is_tracker_online(self):
@@ -172,7 +174,9 @@ class LocalPeer(Peer):
     
     @check_tracker_online
     def read(self, file_path, start_offset=None, length=-1):
-        file_data = filesystem.read_file(self.get_local_path(file_path), start_offset, length)
+        local_path = filesystem.get_local_path(self, file_path)
+        
+        file_data = filesystem.read_file(local_path, start_offset, length)
         if file_data != None:
             return file_data
         
@@ -186,7 +190,7 @@ class LocalPeer(Peer):
         if file_data != None:
             return file_data
         
-        peer_list = self.db.get_peer_list()
+        peer_list = self.db.get_peers_with_file()
         
         self._download_file(file_path, peer_list)
         
@@ -194,18 +198,18 @@ class LocalPeer(Peer):
     
     @check_tracker_online
     def write(self, file_path, new_data, start_offset=None):
-
-        file_path = "dfs/" + file_path
-
-        is_new_file = not bool(self.db.get_file(file_path))
+        f = self.db.get_file(file_path)
+        
+        is_new_file = not bool(f)
         logging.debug("Writing a file " + file_path + ". New file? - " + str(is_new_file))
-
-        filesystem.write_file(self.get_local_path(file_path), new_data, start_offset)
+        
+        local_path = filesystem.get_local_path(self, file_path)
+        filesystem.write_file(local_path, new_data, start_offset)
         
         is_directory = False
-        new_checksum = checksum.calc_file_checksum(file_path)
-        size = os.path.getsize(file_path)
-        new_data = filesystem.read_file(file_path) # we have to read here in case there was an offset
+        new_checksum = checksum.calc_file_checksum(local_path)
+        size = os.path.getsize(local_path)
+        new_data = filesystem.read_file(local_path) # we have to read here in case there was an offset
 
         if is_new_file:            
             file_model = FileModel(file_path, 
@@ -221,7 +225,7 @@ class LocalPeer(Peer):
             file_msg = messages.NewFileAvailable(file_model, self.port)
             communication.send_message(file_msg, self.tracker) # let the tracker know about the new file
         else:
-            file_msg = messages.FileChanged(file_path, new_checksum, new_data, start_offset)
+            file_msg = messages.FileChanged(file_path, new_checksum, new_data, start_offset, f.latest_version)
         
         # I believe that the following should be done by the tracker
         # Only do this if the tracker is offline
@@ -361,6 +365,7 @@ class LocalPeer(Peer):
                 
                 MessageType.ARCHIVE_REQUEST : self.handle_ARCHIVE_REQUEST,
                 MessageType.ARCHIVE_RESPONSE : self.handle_ARCHIVE_RESPONSE,
+                MessageType.FILE_ARCHIVED : self.handle_FILE_ARCHIVED,
                 }
     # not used - done through blocking in connect()
     def handle_CONNECT_REQUEST(self, client_socket, msg):
@@ -369,26 +374,34 @@ class LocalPeer(Peer):
     def handle_CONNECT_RESPONSE(self, client_socket, msg):
         pass
 
+    # not used
     def handle_DISCONNECT_REQUEST(self, client_socket, msg):
         pass
+    
+    # not used
     def handle_DISCONNECT_RESPONSE(self, client_socket, msg):
         pass
     
+    # not used
     def handle_PEER_LIST_REQUEST(self, client_socket, msg):
         pass
 
+    # not used
     def handle_FILE_DOWNLOAD_REQUEST(self, client_socket, msg):
         pass
     
+    # not used
     def handle_FILE_DOWNLOAD_DECLINE(self, client_socket, msg):
         pass
+    
     
     def handle_FILE_DATA(self, client_socket, file_data_msg):
         # save file
         f = file_data_msg.file_model
         start_offset = file_data_msg.start_offset
         
-        filesystem.write_file(f.path, f.data, start_offset)
+        local_path = filesystem.get_local_path(self, f.path, f.latest_version)
+        filesystem.write_file(local_path, f.data, start_offset)
         
         # add file to db
         self.db.add_or_update_file(f)
@@ -402,15 +415,19 @@ class LocalPeer(Peer):
             self._backlog.append((new_file_available_msg, self.tracker))
 
     
-    def handle_FILE_CHANGED(self, client_socket, msg):        
-        file_path = msg.file_path
-        new_data = msg.new_data
-        remote_checksum = msg.new_checksum
-        start_offset = msg.start_offset
+    def handle_FILE_CHANGED(self, client_socket, file_changed_msg):        
+        file_path = file_changed_msg.file_path
+        new_data = file_changed_msg.new_data
+        remote_checksum = file_changed_msg.new_checksum
+        start_offset = file_changed_msg.start_offset
+        latest_version = file_changed_msg.latest_version
         
-        if not os.path.exists(file_path):
+        local_path = filesystem.get_local_path(self, file_path, latest_version)
+        
+        if not os.path.exists(local_path):
             return
-        filesystem.write_file(self.get_local_path(file_path), new_data, start_offset)
+        
+        filesystem.write_file(local_path, new_data, start_offset)
         
         new_data = filesystem.read_file(file_path)
         new_checksum = checksum.calc_checksum(new_data)
@@ -461,6 +478,17 @@ class LocalPeer(Peer):
         pass
     def handle_ARCHIVE_RESPONSE(self, client_socket, msg):
         pass
+    
+    def handle_FILE_ARCHIVED(self, client_socket, file_archived_msg):
+        file_path = file_archived_msg.file_path
+        new_version = file_archived_msg.new_version
+        
+        f = self.db.get_file(file_path)
+        if not f:
+            return
+        
+        f.latest_version = new_version
+        self.db.add_or_update_file(f)
     
 class AcceptorThread(threading.Thread):
     def __init__(self, peer):
