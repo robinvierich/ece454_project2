@@ -41,7 +41,7 @@ class Tracker(LocalPeer):
         Tracker.PORT = port
         self.db = db.TrackerDb()
         # add itself to the peers database
-        self.db.add_peer(Tracker.HOSTNAME, Tracker.PORT, PeerState.ONLINE, 
+        self.db.add_peer(self.hostname, self.port, PeerState.ONLINE, 
                          LocalPeer.MAX_FILE_SIZE, LocalPeer.MAX_FILE_SYS_SIZE, 0)
         self.start_accepting_connections()
 
@@ -114,13 +114,17 @@ class Tracker(LocalPeer):
         peers_list = self.db.get_peers_to_replicate_file(f, peer_ip, peer_port, 
                                                          Tracker.REPLICATION_LEVEL)
 
-        #for i in peers_list:
-        #    # TODO handle the tracker's case
-        #    if i[1] == self.hostname and i[2] == self.port:
-        #        #self._download_file(
-        #        continue
-        #    p = peer.Peer(i[1], i[2])
-        #    communication.send_message(new_file_available_msg, p)
+        # broadcast
+        logging.debug("Broadcasting message ")
+        for i in peers_list:            
+            # TODO handle the tracker's case
+            if i[1] == self.hostname and i[2] == self.port:
+                logging.debug("Skipping self")
+                #self._download_file(                
+                continue
+            logging.debug("Broadcasting to peer " + str(i[1]) + " " + str(i[2]))
+            p = peer.Peer(i[1], i[2])            
+            communication.send_message(new_file_available_msg, p)
             
     
     @check_connected

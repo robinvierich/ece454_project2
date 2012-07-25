@@ -84,7 +84,7 @@ def main():
     
     logging_level = logging.DEBUG
     logging.basicConfig(level=logging.DEBUG, 
-                        format="%(filename)s .%(funcName)s() (%(threadName)s)\n\t>> %(message)s")
+                        format="%(filename)s::%(funcName)s()::$(lineno)d (%(threadName)s)\n\t>> %(message)s")
     # handle the command line arguments
     if options.verbose is None:
         logging.disable(logging.CRITICAL)

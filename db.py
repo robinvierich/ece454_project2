@@ -91,9 +91,10 @@ class PeerDb(object):
         query = ("SELECT FileName, IsDirectory, GoldenChecksum, Size, LastVersionNumber "+ 
                  "FROM Files WHERE FileName=?")
         self.cur.execute(query, (path,))
-        res = self.cur.fetchall()
+        res = self.cur.fetchone()
         if res:
-            return FileModel(*res[0])
+            # can't pickle buffer objects which GoldenChecksums are. Need to conv to str
+            return FileModel(res[0], res[1], str(res[2]), res[3], res[4])
         else:
             return None
 

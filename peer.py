@@ -61,7 +61,7 @@ class LocalPeer(Peer):
     PASSWORD = '12345'
     MAX_FILE_SIZE = 100000000
     MAX_FILE_SYS_SIZE = 1000000000
-    def __init__(self, hostname=Peer.HOSTNAME, port=Peer.PORT, root_path="", db_name=None):
+    def __init__(self, hostname=Peer.HOSTNAME, port=Peer.PORT, root_path=LOCAL_STORE, db_name=None):
         super(LocalPeer, self).__init__(hostname, port)        
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._acceptorThread = AcceptorThread(self)
@@ -149,17 +149,21 @@ class LocalPeer(Peer):
             
             f = response.file_model
             version = f.latest_version
+            golden_checksum = f.checksum
             local_path = filesystem.get_local_path(self, file_path, version)
             
             filesystem.write_file(local_path, f.data)
-            data = filesystem.read_file(local_path)
-            new_checksum = checksum.calc_checksum(data)
+            new_checksum = checksum.calc_file_checksum(local_path)
         
-            if new_checksum == response.file_checksum:
-                return data
+            if new_checksum == golden_checksum:
+                logging.debug("File donwnloaded successfully! File name: " + f.path)
+                return
             else:
+                logging.debug("File donwnloaded but checksum doesn't match. " +
+                              "Going to try again. File name: " + f.path)
                 attempt += 1
-        
+        # TODO notify tracker!
+
         raise Exception("download_file failed - max attempts reached")
        
     
@@ -204,7 +208,7 @@ class LocalPeer(Peer):
         is_new_file = not bool(f)
         logging.debug("Writing a file " + file_path + ". New file? - " + str(is_new_file))
         
-        local_path = LocalPeer.LOCAL_STORE + "/" + file_path
+        local_path = filesystem.get_local_path(self, file_path)
         
         filesystem.write_file(local_path, new_data, start_offset)
         
@@ -335,6 +339,13 @@ class LocalPeer(Peer):
         logging.debug("Received a peers list:\n" + str(peer_list))
         return peer_list
     
+    def _file_model_from_file(self, f):
+        isDir = 1 if os.path.isdir(f) else 0
+        size = os.path.getsize(f)
+        cs = checksum.calc_file_checksum(f)
+        
+        file_model = FileModel(f, isDir, size, cs, 0)
+
     def get_handler_method_index(self):
         return {MessageType.ARCHIVE_REQUEST : self.handle_ARCHIVE_REQUEST,
                 MessageType.PEER_LIST_REQUEST : self.handle_PEER_LIST_REQUEST,
@@ -388,16 +399,28 @@ class LocalPeer(Peer):
     def handle_PEER_LIST_REQUEST(self, client_socket, msg):
         pass
 
-    # not used
-    def handle_FILE_DOWNLOAD_REQUEST(self, client_socket, msg):
-        pass
+
+    def handle_FILE_DOWNLOAD_REQUEST(self, client_socket, msg):        
+        logging.debug("Handling the file download request for file " + msg.file_path)
+        # TODO Need to be aware of versioning here.
+        local_path = filesystem.get_local_path(self, msg.file_path)
+        file_data = filesystem.read_file(local_path)
+        if file_data is None:
+            response = messages.FileDownloadDecline(msg.file_path)
+        else:
+            fm = self.db.get_file(msg.file_path)
+            fm.data = file_data
+            response = messages.FileData(fm)
+        communication.send_message(response, socket=client_socket)
     
-    # not used
+
     def handle_FILE_DOWNLOAD_DECLINE(self, client_socket, msg):
         pass
     
     
     def handle_FILE_DATA(self, client_socket, file_data_msg):
+        logging.debug("Received file data for file " + file_data_msg.file_model.path)
+        logging.debug("File data: " + file_data_msg.file_model.data)
         # save file
         f = file_data_msg.file_model
         start_offset = file_data_msg.start_offset
@@ -435,9 +458,10 @@ class LocalPeer(Peer):
         new_checksum = checksum.calc_checksum(new_data)
         
         if (new_checksum != remote_checksum):
-            communication.send_message(messages.FileDownloadRequest(file_path), client_socket)
+            communication.send_message(messages.FileDownloadRequest(file_path), socket=client_socket)
     
     def handle_NEW_FILE_AVAILABLE(self, client_socket, msg):
+        self.db.add_or_update_file(msg.file_model)
         self._download_file(msg.file_model.path)
     
     def handle_VALIDATE_CHECKSUM_REQUEST(self, client_socket, msg):
