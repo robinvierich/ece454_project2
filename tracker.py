@@ -8,6 +8,7 @@ from peer import LocalPeer, PeerState
 import logging
 import messages
 import peer
+from Cheetah.Templates._SkeletonPage import True
 
 
 def check_connected(function):
@@ -42,7 +43,7 @@ class Tracker(LocalPeer):
         self.db = db.TrackerDb()
         # add itself to the peers database
         self.db.add_peer(self.hostname, self.port, PeerState.ONLINE, 
-                         LocalPeer.MAX_FILE_SIZE, LocalPeer.MAX_FILE_SYS_SIZE, 0)
+                         LocalPeer.MAX_FILE_SIZE, LocalPeer.MAX_FILE_SYS_SIZE, 0, block=True)
         self.start_accepting_connections()
 
     def handle_CONNECT_REQUEST(self, client_socket, msg):        

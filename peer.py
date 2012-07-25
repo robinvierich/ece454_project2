@@ -88,8 +88,7 @@ class LocalPeer(Peer):
                 connected = True
                 logging.info("Server started. Listening on port %i" % self.port)
             except:
-                logging.error("Couldn't listen on port %i" % self.port + 
-                              ". Trying %i" % self.port + 1)                              
+                logging.error("Couldn't listen on port %i. Trying %i" % (self.port, self.port + 1))
                 self.port += 1
         
     def connect(self, password):
@@ -146,7 +145,7 @@ class LocalPeer(Peer):
                 if isinstance(response, messages.FileData):
                     break
             
-            if response == None:
+            if response == None or isinstance(response, messages.FileDownloadDecline):
                 return None
             
             f = response.file_model
@@ -159,12 +158,16 @@ class LocalPeer(Peer):
         
             if new_checksum == golden_checksum:
                 logging.info("File downloaded successfully! File name: " + f.path)
-                return
+                
+                self.db.add_or_update_file(f)
+                
+                new_file_available_msg = messages.NewFileAvailable(f, self.port)
+                communication.send_message(new_file_available_msg, self.tracker)
+                
             else:
                 logging.error("File downloaded but checksum doesn't match. " +
                               "Going to try again. File name: %s" % f.path)
                 attempt += 1
-        # TODO notify tracker!
 
         raise Exception("download_file failed - max attempts reached")
        
@@ -302,7 +305,26 @@ class LocalPeer(Peer):
         communication.send_message(archive_request, self.tracker)
         archive_response = communication.recv_message(self.tracker)
         
-        return archive_response.archived
+        archived = archive_response.archived
+        
+        if not archived:
+            return False
+        
+        f = self.db.get_file(file_path)
+        if not f:
+            return False
+        
+        local_file_path = filesystem.get_local_path(self, file_path, f.latest_version)
+        file_data = filesystem.read_file(local_file_path)
+        
+        f.latest_version += 1
+        self.db.add_or_update_file(f)
+        
+        local_file_path = filesystem.get_local_path(self, file_path, f.latest_version)
+        filesystem.write_file(local_file_path, file_data)
+        
+        return True
+        
     
     def start_accepting_connections(self):
         if self._acceptorThread.is_alive():
@@ -515,6 +537,8 @@ class LocalPeer(Peer):
         pass
     
     def handle_FILE_ARCHIVED(self, client_socket, file_archived_msg):
+        logging.info("Handling FILE_ARCHIVED message - creating new version of file")
+        
         file_path = file_archived_msg.file_path
         new_version = file_archived_msg.new_version
         

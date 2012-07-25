@@ -206,20 +206,27 @@ class TrackerDb(PeerDb):
                 self.q.put(("CREATE TABLE PeerExcludedFiles(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                             "PeerId INT, FileId INT, FileNamePattern TEXT)", []))
     @wait_for_commit_queue            
-    def add_peer(self, ip, port, state, maxFileSize, maxFileSysSize, currFileSysSize, name=""):
+    def add_peer(self, ip, port, state, maxFileSize, maxFileSysSize, currFileSysSize, name="", block=False):
         logging.debug("Adding a new entry in Peers table")
         res = self.get_peer_id(ip, port)
         # peer already exists. Update it, else make a new entry
         if res is not None:
             query = ("UPDATE Peers SET state=?, maxfilesize=?, maxfilesyssize=?, currfilesyssize=?," +
                      "name=? WHERE Id=?")
-            self.q.put((query, [state, maxFileSize, maxFileSysSize, currFileSysSize, name, res]))
+            if block:
+                self.cur.execute(query, [state, maxFileSize, maxFileSysSize, currFileSysSize, name, res])
+            else:
+                self.q.put((query, [state, maxFileSize, maxFileSysSize, currFileSysSize, name, res]))
         else:
             query = ("INSERT INTO Peers " +
                      "(Name, Ip, Port, State, MaxFileSize, MaxFileSysSize, CurrFileSysSize) " +
                      "VALUES (?, ?, ?, ?, ?, ?, ?)")
             
-            self.q.put((query, [name, ip, port, str(state), str(maxFileSize),
+            if block:
+                self.cur.execute(query, [name, ip, port, str(state), str(maxFileSize),
+                                         str(maxFileSysSize), str(currFileSysSize)])
+            else:
+                self.q.put((query, [name, ip, port, str(state), str(maxFileSize),
                                 str(maxFileSysSize), str(currFileSysSize)]), [])
 
     @wait_for_commit_queue
@@ -353,16 +360,16 @@ class LocalPeerDb(PeerDb):
             res = self.cur.fetchone()
             if res[0] == 0:
                 logging.debug("Creating the Peers table")
-                self.q.put(("CREATE TABLE Peers(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                            "Name TEXT, Ip TEXT, Port INT, State INT)", []))
+                self.cur.execute("CREATE TABLE Peers(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                                 "Name TEXT, Ip TEXT, Port INT, State INT)", [])
 
             self.cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' " +
                              "AND name='LocalPeerExcludedFiles'")
             res = self.cur.fetchone()
             if res[0] == 0:
                 logging.debug("Creating the LocalPeerExcludedFiles table")
-                self.q.put(("CREATE TABLE LocalPeerExcludedFiles(Id INTEGER PRIMARY KEY " +
-                            "AUTOINCREMENT, FileId INT, FileNamePattern TEXT)", []))
+                self.cur.execute("CREATE TABLE LocalPeerExcludedFiles(Id INTEGER PRIMARY KEY " +
+                                 "AUTOINCREMENT, FileId INT, FileNamePattern TEXT)", [])
 
     # delete everything in the peers table and insert
     @wait_for_commit_queue
@@ -385,6 +392,8 @@ class LocalPeerDb(PeerDb):
             raise RuntimeError("Cannot get a peers list (LocalPeerDb)")
         return res
 
+dblock = threading.Lock()
+
 class DbThread(threading.Thread):
     def __init__(self, db):            
         super(DbThread, self).__init__()
@@ -392,6 +401,7 @@ class DbThread(threading.Thread):
         self.name = "DBThread"
         logging.debug("Connecting to the database")
         db.connection = sqlite3.connect(db.db_name, check_same_thread=False)
+        
         db.cur = db.connection.cursor()    
         self.alive = threading.Event()
         self.alive.set()
@@ -401,15 +411,20 @@ class DbThread(threading.Thread):
     def run(self):
         logging.debug("Spawned a Database Thread")
         while self.alive.is_set():
-            item = self.db.q.get(block=True)            
+            item = self.db.q.get(block=True)
             logging.debug("Performing a db statement: " + item[0] + " " + str(item[1]))
-            #with self.db.connection:                
-            if isinstance(item[0][0], (list, tuple)):
-                self.db.cur.executemany(item[0], item[1])
-            else:
-                self.db.cur.execute(item[0], item[1])
-            self.db.connection.commit()
-            self.db.q.task_done()
+            #with self.db.connection:
+            
+            success = False
+            while not success: 
+                if isinstance(item[0][0], (list, tuple)):
+                    self.db.cur.executemany(item[0], item[1])
+                else:
+                    self.db.cur.execute(item[0], item[1])
+                self.db.connection.commit()
+                self.db.q.task_done()
+                success = True
+                
         logging.debug("DbThread finishing run")
 
     def join(self, timeout=None):
