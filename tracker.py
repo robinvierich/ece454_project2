@@ -37,12 +37,13 @@ class Tracker(LocalPeer):
     HOSTNAME = "127.0.0.1"
     PORT = 12345
     REPLICATION_LEVEL = 100
+    DB_NAME = "tracker/tracker.db"
 
-    def __init__(self, port=PORT, hostname=HOSTNAME):
+    def __init__(self, port=PORT, hostname=HOSTNAME, db_name=DB_NAME):
         Tracker.PORT = port
         
-        super(Tracker, self).__init__(hostname, port)
-        self.tracker = peer.Peer(self.hostname, self.port)
+        super(Tracker, self).__init__(hostname, port, db_name)
+        #self.tracker = peer.Peer(self.hostname, self.port)
         self.db = db.TrackerDb()
         # add itself to the peers database
         self.db.add_or_update_peer(self.hostname, self.port, PeerState.ONLINE, 
@@ -148,7 +149,7 @@ class Tracker(LocalPeer):
 
         # broadcast
         logging.debug("Broadcasting message ")
-        for i in peers_list:            
+        for i in peers_list:
             if i[1] == self.hostname and i[2] == self.port:
                 self._download_file(f.path, peer_list=peers_list)
                 continue
@@ -216,9 +217,8 @@ class Tracker(LocalPeer):
         f = self.db.get_file(file_path)
         if f:
             delete_response.can_delete = True
-            
+        
         communication.send_message(delete_response, socket=client_socket)
-                
     
     @check_connected
     def handle_DELETE(self, client_socket, msg):

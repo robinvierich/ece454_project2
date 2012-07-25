@@ -60,7 +60,7 @@ def run_tests():
     global peer2
     
     logging.basicConfig(level=logging.DEBUG, 
-                        format="%(threadName)s %(filename)s.%(funcName)s(): %(message)s")
+                        format="%(threadName)s: %(message)s (%(filename)s.%(funcName)s())")
     
     print "DFS Test"
     print "Starting Tracker"
@@ -68,7 +68,6 @@ def run_tests():
     tracker = Tracker()
     
     dfs.init_local_peer(Tracker.HOSTNAME, Tracker.PORT, "127.0.0.1", root_path="./peer1/dfs/", db_name="peer1/test.db")
-    dfs.local_peer.root_path="./peer1/"
     
     peer2 = LocalPeer(hostname="localhost", port=LocalPeer.PORT + 1,  root_path="./peer2/dfs/", db_name="peer2/test.db")
     

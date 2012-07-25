@@ -8,7 +8,6 @@ import Queue
 import threading
 import os.path
 from messages import FileModel
-from msilib.schema import SelfReg
 
 def wait_for_commit_queue(function):
     """A decorator that waits for the commit queue to be empty, 

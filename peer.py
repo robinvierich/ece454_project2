@@ -33,6 +33,9 @@ class Peer(object):
     
     def __str__(self):
         return "Peer. ip=%s port=%s" % (self.hostname, self.port)
+    
+    def __repr__(self, *args, **kwargs):
+        return self.__str__()
 
 def check_tracker_online(function):
     """A decorator that checks if the tracker is online
