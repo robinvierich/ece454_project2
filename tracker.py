@@ -8,7 +8,6 @@ from peer import LocalPeer, PeerState
 import logging
 import messages
 import peer
-#from Cheetah.Templates._SkeletonPage import True
 
 
 def check_connected(function):
@@ -42,7 +41,7 @@ class Tracker(LocalPeer):
     def __init__(self, port=PORT, hostname=HOSTNAME, db_name=DB_NAME):
         Tracker.PORT = port
         
-        super(Tracker, self).__init__(hostname, port, db_name)
+        super(Tracker, self).__init__(hostname, port, db_name=db_name)
         #self.tracker = peer.Peer(self.hostname, self.port)
         self.db = db.TrackerDb()
         # add itself to the peers database
@@ -217,8 +216,9 @@ class Tracker(LocalPeer):
         f = self.db.get_file(file_path)
         if f:
             delete_response.can_delete = True
-        
+            
         communication.send_message(delete_response, socket=client_socket)
+                
     
     @check_connected
     def handle_DELETE(self, client_socket, msg):

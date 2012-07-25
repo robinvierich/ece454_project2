@@ -6,6 +6,7 @@ import socket
 import threading
 import os.path
 import logging
+import select
 
 import communication
 from messages import MessageType, FileModel
@@ -111,9 +112,22 @@ class LocalPeer(Peer):
             self.db.clear_peers_and_insert(peer_list)
             
             file_list = self.ls()
-            for f in file_list:
-                self.db.add_or_update_file(f)
-            # TODO Check local files and download changes
+            for remote_file in file_list:
+                # for each file, check locally stored version and checksum
+                # and fetch changes, as needed
+                db_file = self.db.get_file(remote_file.path)
+                if db_file is None:
+                    logging.debug("New file: %s", remote_file.path)
+                    self.db.add_or_update_file(remote_file)
+                else:
+                    print "1"
+                    if remote_file.latest_version == db_file.latest_version:
+                        if remote_file.checksum != db_file.checksum:
+                            # same version, but file is changed. re-fetch
+                            self._download_file(remote_file.path) # check if successful
+                    else:
+                        # TODO fetch the new versions
+                        pass
         else:
             logging.error("%s : Connection to tracker unsuccessful" % self)
                 
@@ -167,7 +181,7 @@ class LocalPeer(Peer):
                 f.data = None
                 response = messages.FileChanged(f, self.port)
                 communication.send_message(response, self.tracker)
-                return
+                return True
                 
             else:
                 logging.error("File downloaded but checksum doesn't match. " +
@@ -257,7 +271,7 @@ class LocalPeer(Peer):
         #for peer in peer_list:
         #    communication.send_message(file_msg, peer)
         
-    def _write_tracker_offline(self):
+    def write_tracker_offline(self):
         
         #record the write in a backlog
         
@@ -342,7 +356,14 @@ class LocalPeer(Peer):
         self._acceptorThread.start()
     
     def stop(self):
+        print "Please wait. Stopping Incomming connections..."
+        self._acceptorThread.stop = True
         self._acceptorThread.join(1)
+        # force terminate the thread
+        if self._acceptorThread.isAlive():
+            print "Timed out. Try again later."
+        else:
+            self._acceptorThread = AcceptorThread(self)
     
     def get_server_socket(self):
         return self._server_socket
@@ -587,6 +608,7 @@ class AcceptorThread(threading.Thread):
         super(AcceptorThread, self).__init__()
         self.name = "Acceptor"
         self._peer = peer
+        self.stop = False
 
         self.alive = threading.Event()
         self.alive.set()
@@ -596,15 +618,18 @@ class AcceptorThread(threading.Thread):
     def run(self):        
         server_socket = self._peer.get_server_socket()
         while self.alive.is_set():            
-            logging.debug("Waiting for a connection")
-            client_socket, addr = server_socket.accept()
-            logging.debug("Received a new connection. Spawning a HandlerThread")
-            handler = HandlerThread(self._peer, client_socket)
-            handler.start()
+            #logging.debug("Waiting for a connection")
+            readable, writable, errored = select.select([server_socket], [], [], 0.5)
+            if len(readable) != 0:                
+                client_socket, addr = server_socket.accept()
+                handler = HandlerThread(self._peer, client_socket)
+                handler.start()
+            if self.stop:                
+                break
     
     def join(self, timeout=None):
         logging.debug("Ending thread")
-        self.alive.clear()
+        self.alive.clear()        
         threading.Thread.join(self, timeout)
 
 class HandlerThread(threading.Thread):

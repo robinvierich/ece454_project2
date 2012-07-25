@@ -315,8 +315,7 @@ class TrackerDb(PeerDb):
         if res is None:
             raise RuntimeError("Cannot get a peers list " + file_path)
         
-        from peer import Peer
-            
+        from peer import Peer            
         peer_list = [Peer(db_peer[2], db_peer[3], db_peer[1], db_peer[4]) for db_peer in res]
             
         return peer_list            
@@ -367,15 +366,15 @@ class TrackerDb(PeerDb):
             #query = ("SELECT Id, Ip, Port FROM Peers " +
             #         "WHERE Id!=? AND State=? AND MaxFileSize>=? " +
             #         "AND MaxFileSysSize>=CurrFileSysSize+?")            
-            query = ("SELECT Id, Ip, Port FROM Peers " +
+            query = ("SELECT Id, Name, Ip, Port, State FROM Peers " +
                      "WHERE Id!=? AND State=?")
             #self.cur.execute(query, [peer_id, PeerState.ONLINE, file_model.size, 
             #                         file_model.size])
-            return self.excute_now_and_fetch_all(query, [peer_id, PeerState.ONLINE])
+            res = self.excute_now_and_fetch_all(query, [peer_id, PeerState.ONLINE])
         else:
-            query = ("SELECT Id, Ip, Port FROM Peers WHERE " +
+            query = ("SELECT Id, Name, Ip, Port, State FROM Peers WHERE " +
                      "State=?")
-            return self.excute_now_and_fetch_all(query, [PeerState.ONLINE])
+            res = self.excute_now_and_fetch_all(query, [PeerState.ONLINE])
                 
             #query = ("SELECT Id, Ip, Port FROM Peers WHERE " +
             #         "State=? AND MaxFileSize>=? " +
@@ -383,6 +382,11 @@ class TrackerDb(PeerDb):
             
             #self.cur.execute(query, [PeerState.ONLINE, file_model.size, 
             #                         file_model.size])
+
+        from peer import Peer            
+        peer_list = [Peer(db_peer[2], db_peer[3], db_peer[1], db_peer[4]) for db_peer in res]
+
+        return peer_list
         
     @wait_for_commit_queue
     def check_checksum(self, file_path, checksum):
