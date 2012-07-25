@@ -150,7 +150,7 @@ class Tracker(LocalPeer):
         logging.debug("Broadcasting message ")
         for i in peers_list:            
             if i[1] == self.hostname and i[2] == self.port:
-                self._download_file(f.path)
+                self._download_file(f.path, peer_list=peers_list)
                 continue
             logging.debug("Broadcasting to peer " + str(i[1]) + " " + str(i[2]))
             p = peer.Peer(i[1], i[2])            

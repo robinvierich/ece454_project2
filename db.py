@@ -139,8 +139,7 @@ class PeerDb(object):
 
         if file_id is not None:
             query = "SELECT Count(*) FROM LocalPeerFiles WHERE FileId=?"
-            self.excute_now_and_fetch_one(query, [file_id])
-            res = self.cur.fetchone()
+            res = self.excute_now_and_fetch_one(query, [file_id])
             if res[0] > 0:
                 return True
         return False
