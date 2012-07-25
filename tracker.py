@@ -114,13 +114,13 @@ class Tracker(LocalPeer):
         peers_list = self.db.get_peers_to_replicate_file(f, peer_ip, peer_port, 
                                                          Tracker.REPLICATION_LEVEL)
 
-        for i in peers_list:
-            # TODO handle the tracker's case
-            if i[1] == self.hostname and i[2] == self.port:
-                #self._download_file(
-                continue
-            p = peer.Peer(i[1], i[2])
-            communication.send_message(new_file_available_msg, p)
+        #for i in peers_list:
+        #    # TODO handle the tracker's case
+        #    if i[1] == self.hostname and i[2] == self.port:
+        #        #self._download_file(
+        #        continue
+        #    p = peer.Peer(i[1], i[2])
+        #    communication.send_message(new_file_available_msg, p)
             
     
     @check_connected

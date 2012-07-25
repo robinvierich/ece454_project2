@@ -57,6 +57,7 @@ def check_tracker_online(function):
 
 
 class LocalPeer(Peer):  
+    LOCAL_STORE = "dfs"
     PASSWORD = '12345'
     MAX_FILE_SIZE = 100000000
     MAX_FILE_SYS_SIZE = 1000000000
@@ -203,7 +204,8 @@ class LocalPeer(Peer):
         is_new_file = not bool(f)
         logging.debug("Writing a file " + file_path + ". New file? - " + str(is_new_file))
         
-        local_path = filesystem.get_local_path(self, file_path)
+        local_path = LocalPeer.LOCAL_STORE + "/" + file_path
+        
         filesystem.write_file(local_path, new_data, start_offset)
         
         is_directory = False

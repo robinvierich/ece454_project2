@@ -72,57 +72,55 @@ class PeerDb(object):
         # for now, this just lists all files that the tracker knows about
         logging.debug("Listing files")
         
-        with self.connection:
-            query = ("SELECT FileName, IsDirectory, GoldenChecksum, Size, LastVersionNumber "+
-                     "FROM Files")
-            #query = "select * from Files"
-            self.cur.execute(query)
-            res = self.cur.fetchall()
-            #file_model_list = [FileModel(*f) for f in res if f]
-            file_model_list = []
-            for f in res:
-                if f is None:
-                    continue
-                # can't pickle buffer objects which GoldenChecksums are. Need to conv to str
-                file_model_list.append(FileModel(f[0], f[1], str(f[2]), f[3], f[4]))
-            return file_model_list
+        query = ("SELECT FileName, IsDirectory, GoldenChecksum, Size, LastVersionNumber "+
+                 "FROM Files")
+        #query = "select * from Files"
+        self.cur.execute(query)
+        res = self.cur.fetchall()
+        #file_model_list = [FileModel(*f) for f in res if f]
+        file_model_list = []
+        for f in res:
+            if f is None:
+                continue
+            # can't pickle buffer objects which GoldenChecksums are. Need to conv to str
+            file_model_list.append(FileModel(f[0], f[1], str(f[2]), f[3], f[4]))
+        return file_model_list
 
     @wait_for_commit_queue
     def get_file(self, path):
-        with self.connection:
-            query = ("SELECT FileName, IsDirectory, GoldenChecksum, Size, LastVersionNumber "+ 
-                    "FROM Files WHERE FileName=?")
-            self.cur.execute(query, (path,))
-            res = self.cur.fetchall()
-            if res:
-                return FileModel(*res[0])
-            else:
-                return None
+        query = ("SELECT FileName, IsDirectory, GoldenChecksum, Size, LastVersionNumber "+ 
+                 "FROM Files WHERE FileName=?")
+        self.cur.execute(query, (path,))
+        res = self.cur.fetchall()
+        if res:
+            return FileModel(*res[0])
+        else:
+            return None
 
     # TODO add parents
     @wait_for_commit_queue
     def add_or_update_file(self, file_model):
-        
+        logging.debug("Insert or update on Files table")
         file_name = file_model.path 
         is_directory = file_model.is_dir
         size = file_model.size
         checksum = file_model.checksum
         last_ver_num = file_model.latest_version
         
-        with self.connection:
-            # We assume no directory trees and unique file names
-            res = self.get_file_id(file_name)
-            if res is None:
-                # add a new entry
-                query = ("INSERT INTO Files " +
-                         "(FileName, IsDirectory, Size, GoldenChecksum, LastVersionNumber) " +
-                         "VALUES (?, ?, ?, ?, ?)")
-                self.q.put((query, [file_name, is_directory, size, sqlite3.Binary(checksum), last_ver_num]))
-            else:
-                # Update existing one
-                query = ("UPDATE Files SET FileName=?, IsDirectory=?, Size=?, GoldenChecksum=?, " +
-                         "LastVersionNumber=? WHERE Id=?")
-                self.q.put((query, [file_name, is_directory, size, sqlite3.Binary(checksum), last_ver_num, res]))
+        #with self.connection:
+        # We assume no directory trees and unique file names
+        res = self.get_file_id(file_name)
+        if res is None:
+            # add a new entry
+            query = ("INSERT INTO Files " +
+                     "(FileName, IsDirectory, Size, GoldenChecksum, LastVersionNumber) " +
+                     "VALUES (?, ?, ?, ?, ?)")
+            self.q.put((query, [file_name, is_directory, size, sqlite3.Binary(checksum), last_ver_num]))
+        else:
+            # Update existing one
+            query = ("UPDATE Files SET FileName=?, IsDirectory=?, Size=?, GoldenChecksum=?, " +
+                     "LastVersionNumber=? WHERE Id=?")
+            self.q.put((query, [file_name, is_directory, size, sqlite3.Binary(checksum), last_ver_num, res]))
 
     @wait_for_commit_queue        
     def add_file(self, file_model):      
@@ -143,11 +141,10 @@ class PeerDb(object):
     @wait_for_commit_queue
     def clear_files_and_add_all(self, file_list):
         logging.debug("Adding a files into the File table")
-        with self.connection:
-            query = ("DELETE FROM Files")
-            self.q.put((query, []))
-            query = ("INSERT INTO Files VALUES (?, ?, ?, ?, ?, ?, ?)")
-            self.q.put((query, file_list))
+        query = ("DELETE FROM Files")
+        self.q.put((query, []))
+        query = ("INSERT INTO Files VALUES (?, ?, ?, ?, ?, ?, ?)")
+        self.q.put((query, file_list))
     
     @wait_for_commit_queue
     def get_peer_id(self, peer_ip, peer_port):
@@ -210,74 +207,70 @@ class TrackerDb(PeerDb):
     @wait_for_commit_queue            
     def add_peer(self, ip, port, state, maxFileSize, maxFileSysSize, currFileSysSize, name=""):
         logging.debug("Adding a new entry in Peers table")
-        with self.connection:
-            res = self.get_peer_id(ip, port)
-            # peer already exists. Update it, else make a new entry
-            if res is not None:
-                query = ("UPDATE Peers SET state=?, maxfilesize=?, maxfilesyssize=?, currfilesyssize=?," +
-                         "name=? WHERE Id=?")
-                self.q.put((query, [state, maxFileSize, maxFileSysSize, currFileSysSize, name, res]))
-            else:
-                query = ("INSERT INTO Peers " +
-                         "(Name, Ip, Port, State, MaxFileSize, MaxFileSysSize, CurrFileSysSize) " +
-                         "VALUES (?, ?, ?, ?, ?, ?, ?)")
-        
-                self.q.put((query, [name, ip, port, str(state), str(maxFileSize),
-                            str(maxFileSysSize), str(currFileSysSize)]), [])
+        res = self.get_peer_id(ip, port)
+        # peer already exists. Update it, else make a new entry
+        if res is not None:
+            query = ("UPDATE Peers SET state=?, maxfilesize=?, maxfilesyssize=?, currfilesyssize=?," +
+                     "name=? WHERE Id=?")
+            self.q.put((query, [state, maxFileSize, maxFileSysSize, currFileSysSize, name, res]))
+        else:
+            query = ("INSERT INTO Peers " +
+                     "(Name, Ip, Port, State, MaxFileSize, MaxFileSysSize, CurrFileSysSize) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?)")
+            
+            self.q.put((query, [name, ip, port, str(state), str(maxFileSize),
+                                str(maxFileSysSize), str(currFileSysSize)]), [])
 
     @wait_for_commit_queue
     def get_peer_state(self, ip):
-        with self.connection:
-            query = ("SELECT State FROM Peers " +
+        query = ("SELECT State FROM Peers " +
                  "WHERE ip='%s'" % ip)
-            self.cur.execute(query)
-            res = self.cur.fetchone()
-            
-            return res[0]
+        self.cur.execute(query)
+        res = self.cur.fetchone()
+        
+        return res[0]
         
     @wait_for_commit_queue        
     def get_peers_with_file(self, file_path=None):
-        with self.connection:
-            if file_path is None:
-                # just give them the list of all peers
-                query = "SELECT Id, Name, Ip, Port, State FROM Peers"
-            else:
-                # Lookup fileID then peers ids that have this file
-                res = self.get_file_id(file_path)
-                if res is None:
-                    raise RuntimeError("Cannot find file with name " + file_path)
-                query = "SELECT PeerId FROM PeerFile WHERE FileId=?"
-                self.cur.execute(query, [res])
-                res = self.cur.fetchone()
-                if not res:
-                    raise RuntimeError("Cannot find peer that has file " + file_path)
-                query = "SELECT Id, Name, Ip, Port, State FROM Peers WHERE Id=" + str(res[0])
-
-            self.cur.execute(query)
-            res = self.cur.fetchall()
+        if file_path is None:
+            # just give them the list of all peers
+            query = "SELECT Id, Name, Ip, Port, State FROM Peers"
+        else:
+            # Lookup fileID then peers ids that have this file
+            res = self.get_file_id(file_path)
             if res is None:
-                raise RuntimeError("Cannot get a peers list " + file_path)
+                raise RuntimeError("Cannot find file with name " + file_path)
+            query = "SELECT PeerId FROM PeerFile WHERE FileId=?"
+            self.cur.execute(query, [res])
+            res = self.cur.fetchone()
+            if not res:
+                raise RuntimeError("Cannot find peer that has file " + file_path)
+            query = "SELECT Id, Name, Ip, Port, State FROM Peers WHERE Id=" + str(res[0])
             
-            from peer import Peer
+        self.cur.execute(query)
+        res = self.cur.fetchall()
+        if res is None:
+            raise RuntimeError("Cannot get a peers list " + file_path)
+        
+        from peer import Peer
             
-            peer_list = [Peer(db_peer[2], db_peer[3], db_peer[1], db_peer[4]) for db_peer in res]
+        peer_list = [Peer(db_peer[2], db_peer[3], db_peer[1], db_peer[4]) for db_peer in res]
             
-            return peer_list            
+        return peer_list            
 
     @wait_for_commit_queue
     def has_unreplicated_files(self, peer_ip, peer_port):
         logging.debug("Checking if a peer has unreplicated files")
-        with self.connection:
-            res = self.get_peer_id(peer_ip, peer_port)
-            if res is None:
-                raise RuntimeError("Cannot find peer!")
-            # this is a bit of a nasty query to find # of unreplicated files. tested, seems to work
-            query = ("SELECT count(*) FROM PeerFile WHERE FileId NOT IN " +
-                     "(SELECT FileId FROM PeerFile WHERE FileId IN " +
-                     "(SELECT FileId FROM PeerFile WHERE PeerId=?) AND PeerId!=?) AND PeerId=?")
-            self.cur.execute(query, [res, res, res])
-            res = self.cur.fetchone()
-            return False if res is None else True
+        res = self.get_peer_id(peer_ip, peer_port)
+        if res is None:
+            raise RuntimeError("Cannot find peer!")
+        # this is a bit of a nasty query to find # of unreplicated files. tested, seems to work
+        query = ("SELECT count(*) FROM PeerFile WHERE FileId NOT IN " +
+                 "(SELECT FileId FROM PeerFile WHERE FileId IN " +
+                 "(SELECT FileId FROM PeerFile WHERE PeerId=?) AND PeerId!=?) AND PeerId=?")
+        self.cur.execute(query, [res, res, res])
+        res = self.cur.fetchone()
+        return False if res is None else True
     
     @wait_for_commit_queue
     def add_file_peer_entry(self, file_model, peer_ip, peer_port):
@@ -303,46 +296,44 @@ class TrackerDb(PeerDb):
     
     @wait_for_commit_queue
     def get_peers_to_replicate_file(self, file_model, peer_ip, peer_port, max_replication):
-        with self.connection:
-            peer_id = self.get_peer_id(peer_ip, peer_port)
+        peer_id = self.get_peer_id(peer_ip, peer_port)
         
-            from peer import PeerState
+        from peer import PeerState
         
-            # not going to worry about replication level for now
-            if peer_id is not None:
-                #query = ("SELECT Id, Ip, Port FROM Peers " +
-                #         "WHERE Id!=? AND State=? AND MaxFileSize>=? " +
-                #         "AND MaxFileSysSize>=CurrFileSysSize+?")            
-                query = ("SELECT Id, Ip, Port FROM Peers " +
-                         "WHERE Id!=? AND State=?")
-                #self.cur.execute(query, [peer_id, PeerState.ONLINE, file_model.size, 
-                #                         file_model.size])
-                self.cur.execute(query, [peer_id, PeerState.ONLINE])
-            else:
-                query = ("SELECT Id, Ip, Port FROM Peers WHERE " +
-                         "State=?")
+        # not going to worry about replication level for now
+        if peer_id is not None:
+            #query = ("SELECT Id, Ip, Port FROM Peers " +
+            #         "WHERE Id!=? AND State=? AND MaxFileSize>=? " +
+            #         "AND MaxFileSysSize>=CurrFileSysSize+?")            
+            query = ("SELECT Id, Ip, Port FROM Peers " +
+                     "WHERE Id!=? AND State=?")
+            #self.cur.execute(query, [peer_id, PeerState.ONLINE, file_model.size, 
+            #                         file_model.size])
+            self.cur.execute(query, [peer_id, PeerState.ONLINE])
+        else:
+            query = ("SELECT Id, Ip, Port FROM Peers WHERE " +
+                     "State=?")
 
-                self.cur.execute(query, [PeerState.ONLINE])
+            self.cur.execute(query, [PeerState.ONLINE])
                 
-                #query = ("SELECT Id, Ip, Port FROM Peers WHERE " +
-                #         "State=? AND MaxFileSize>=? " +
-                #         "AND MaxFileSysSize>=CurrFileSysSize+?")
-
-                #self.cur.execute(query, [PeerState.ONLINE, file_model.size, 
-                #                         file_model.size])
+            #query = ("SELECT Id, Ip, Port FROM Peers WHERE " +
+            #         "State=? AND MaxFileSize>=? " +
+            #         "AND MaxFileSysSize>=CurrFileSysSize+?")
+            
+            #self.cur.execute(query, [PeerState.ONLINE, file_model.size, 
+            #                         file_model.size])
 
         return self.cur.fetchall()
         
     @wait_for_commit_queue
     def check_checksum(self, file_path, checksum):
         file_id = self.get_file_id(file_path)
-        with self.connection:
-            if file_id is None:
-                raise RuntimeError("Cannot find file " + file_path)
-            query = "SELECT Checksum FROM Files WHERE FileId=? AND Checksum=?"
-            self.cur.execute(query, [file_id, sqlite3.Binary(checksum)])
-            res = self.cur.fetchone()
-            return False if res is None else True
+        if file_id is None:
+            raise RuntimeError("Cannot find file " + file_path)
+        query = "SELECT Checksum FROM Files WHERE FileId=? AND Checksum=?"
+        self.cur.execute(query, [file_id, sqlite3.Binary(checksum)])
+        res = self.cur.fetchone()
+        return False if res is None else True
                 
 class LocalPeerDb(PeerDb):
     DB_FILE = "peer_db.db"
@@ -384,15 +375,14 @@ class LocalPeerDb(PeerDb):
         
     @wait_for_commit_queue
     def get_peers_with_file(self):
-        with self.connection:
-            # just give them the list of all peers
-            query = "SELECT Id, Name, Ip, Port, State FROM Peers"
+        # just give them the list of all peers
+        query = "SELECT Id, Name, Ip, Port, State FROM Peers"
             
-            self.cur.execute(query)
-            res = self.cur.fetchall()
-            if not res:
-                raise RuntimeError("Cannot get a peers list (LocalPeerDb)")
-            return res
+        self.cur.execute(query)
+        res = self.cur.fetchall()
+        if not res:
+            raise RuntimeError("Cannot get a peers list (LocalPeerDb)")
+        return res
 
 class DbThread(threading.Thread):
     def __init__(self, db):            
