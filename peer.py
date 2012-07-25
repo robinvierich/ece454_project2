@@ -291,6 +291,7 @@ class LocalPeer(Peer):
             os.remove(file_path)
         
         peer_list = self._get_peer_list(file_path)
+        peer_list.append(self.tracker)
         
         delete_msg = messages.Delete(file_path)
         for peer in peer_list:
@@ -555,15 +556,24 @@ class LocalPeer(Peer):
     def handle_VALIDATE_CHECKSUM_RESPONSE(self, client_socket, msg):
         pass
     
-    def handle_DELETE_REQUEST(self, client_socket, msg):
+    def handle_DELETE_REQUEST(self, client_socket, delete_request):       
+        
         pass
     
     def handle_DELETE_RESPONSE(self, client_socket, msg):
         pass
     
-    def handle_DELETE(self, client_socket, msg):
-        file_path = msg.file_path
-        filesystem.delete_file(file_path)
+    def handle_DELETE(self, client_socket, delete_msg):
+        file_path = delete_msg.file_path
+        
+        f = self.db.get_file(file_path)
+        
+        for versionIdx in range(f.latest_version): 
+            local_file_path = filesystem.get_local_path(self, file_path, versionIdx + 1)
+            filesystem.delete_file(local_file_path)
+        
+        
+        self.db.delete_file(file_path)
     
     def handle_MOVE_REQUEST(self, client_socket, msg):
         pass

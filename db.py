@@ -183,6 +183,11 @@ class PeerDb(object):
                             str(f.latest_version))
                     ))
 
+    def delete_file(self, file_path):
+        query = "DELETE FROM Files WHERE FileName=?"
+        
+        self.q.put((query, (file_path,)))
+        
     # Delete everything from the files table and repopulate it with file_list
     @wait_for_commit_queue
     def clear_files_and_add_all(self, file_list):

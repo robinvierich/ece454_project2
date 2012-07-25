@@ -41,9 +41,9 @@ class Tracker(LocalPeer):
     def __init__(self, port=PORT, hostname=HOSTNAME, db_name=DB_NAME):
         Tracker.PORT = port
         
-        super(Tracker, self).__init__(hostname, port, db_name=db_name)
+        super(Tracker, self).__init__(hostname, port)
         #self.tracker = peer.Peer(self.hostname, self.port)
-        self.db = db.TrackerDb()
+        self.db = db.TrackerDb(db_name)
         # add itself to the peers database
         self.db.add_or_update_peer(self.hostname, self.port, PeerState.ONLINE, 
                                    LocalPeer.MAX_FILE_SIZE, LocalPeer.MAX_FILE_SYS_SIZE, 
@@ -142,18 +142,18 @@ class Tracker(LocalPeer):
         # for now, to find peers where the file should be replicated, 
         # just select peers that are able to replicate the file and 
         # that have the smallest fs size. limit the # by replication level
-
+        
         peers_list = self.db.get_peers_to_replicate_file(f, source_ip, source_port, 
                                                          Tracker.REPLICATION_LEVEL)
 
         # broadcast
         logging.debug("Broadcasting message ")
-        for i in peers_list:
-            if i[1] == self.hostname and i[2] == self.port:
+        for p in peers_list:
+            print p.port
+            if p.hostname == self.hostname and p.port == self.port:
                 self._download_file(f.path, peer_list=peers_list)
                 continue
-            logging.debug("Broadcasting to peer " + str(i[1]) + " " + str(i[2]))
-            p = peer.Peer(i[1], i[2])            
+            logging.debug("Broadcasting to peer %s %d", p.hostname, p.port)
             communication.send_message(new_file_available_msg, p)
             
     # this either means that a peer now has this particular file
@@ -183,11 +183,14 @@ class Tracker(LocalPeer):
             print str(peers_list)
             for p in peers_list:                            
                 if p.hostname == self.hostname and p.port == self.port:
-                    super(Tracker, self).handle_FILE_CHANGED(self, client_socket, file_changed_msg)
+                    super(Tracker, self).handle_FILE_CHANGED(client_socket, file_changed_msg)
                     continue
-                elif p.hostname == source_ip and p.port == source_port:
+                if p.hostname == source_ip and p.port == source_port:
                     continue
-                    
+                if p.state != PeerState.ONLINE:
+                    continue
+                
+                
                 logging.debug("Broadcasting to peer %s %s", p.hostname, p.port)
                 communication.send_message(file_changed_msg, p)
 
@@ -216,7 +219,7 @@ class Tracker(LocalPeer):
         f = self.db.get_file(file_path)
         if f:
             delete_response.can_delete = True
-            
+        
         communication.send_message(delete_response, socket=client_socket)
                 
     

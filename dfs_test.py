@@ -1,11 +1,10 @@
-from tracker import Tracker
-from peer import LocalPeer
-
-
 import dfs
 import logging
 
 import os.path
+
+from tracker import Tracker
+from peer import LocalPeer
 
 peer2 = None
 
@@ -55,11 +54,19 @@ def test_archive(testfile_path = "dfs_test.txt"):
     
     print "dfs archive() result:"
     print archive_result
+
+def test_delete(testfile_path = "dfs_test.txt"):
+    print "Testing Delete. file_path = %s" % testfile_path
     
+    delete_result = dfs.delete(testfile_path)
+    
+    print "delete_result:"
+    print delete_result
+
 def run_tests():
     global peer2
     
-    logging.basicConfig(level=logging.DEBUG, 
+    logging.basicConfig(level=logging.INFO, 
                         format="%(threadName)s: %(message)s (%(filename)s.%(funcName)s())")
     
     print "DFS Test"
@@ -74,6 +81,8 @@ def run_tests():
     test_write()
     test_ls()
     test_archive()
+    test_delete()
+    test_ls()
     
     while True:
         pass
