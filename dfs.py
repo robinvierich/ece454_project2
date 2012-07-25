@@ -38,6 +38,8 @@ def connect(password):
 def disconnect(check_for_unreplicated_files=True):
     return local_peer.disconnect(check_for_unreplicated_files)
 
+def add_file(src_file_path, dest_file_path):
+    return local_peer.add_file(src_file_path, dest_file_path)
 
 # File Operations
 def read(file_path, start_offset=None, length=None):

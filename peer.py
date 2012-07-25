@@ -354,9 +354,13 @@ class LocalPeer(Peer):
         file_model = FileModel(path, isDir, size, cs, 0)
         self.db.add_or_update_file(file_model)
     
-    def add_new_file(self, path):        
-        # TODO
-        pass
+    def add_file(self, src_file_path, dest_file_path):
+        logging.info("Adding file to system")
+        file = open(src_file_path, "r")
+        data = file.read() 
+        file.close()
+        
+        self.write(dest_file_path, data)
 
     #TODO: Probably makes more sense to make all these functions part of the peer class
     

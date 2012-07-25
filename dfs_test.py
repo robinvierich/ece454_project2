@@ -56,8 +56,6 @@ def test_archive(testfile_path = "dfs_test.txt"):
     print "dfs archive() result:"
     print archive_result
     
-    
-    
 def run_tests():
     global peer2
     

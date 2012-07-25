@@ -46,15 +46,18 @@ class PeerDb(object):
         self.db_thread.start()
         self.create_common_tables()
 
+    @wait_for_commit_queue
     def execute_now(self, query, params=[]):
         with self.dblock:
             self.cur.execute(query, params)
-
+    
+    @wait_for_commit_queue
     def excute_now_and_fetch_one(self, query, params=[]):
         with self.dblock:
             self.cur.execute(query, params)
             return self.cur.fetchone()
     
+    @wait_for_commit_queue
     def excute_now_and_fetch_all(self, query, params=[]):
         with self.dblock:
             self.cur.execute(query, params)
