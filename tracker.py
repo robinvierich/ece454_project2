@@ -8,7 +8,7 @@ from peer import LocalPeer, PeerState
 import logging
 import messages
 import peer
-from Cheetah.Templates._SkeletonPage import True
+#from Cheetah.Templates._SkeletonPage import True
 
 
 def check_connected(function):

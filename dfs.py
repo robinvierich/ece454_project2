@@ -20,11 +20,11 @@ def init_local_peer(tracker_hostname, tracker_port, self_ip):
     global local_peer
     Tracker.HOSTNAME = tracker_hostname
     Tracker.PORT = tracker_port
-    local_peer = LocalPeer(self_ip)
+    local_peer = LocalPeer(hostname=self_ip)
 
 def init_tracker(tracker_port, self_ip):
     global local_peer
-    local_peer = Tracker(port=tracker_port, ip=self_ip)
+    local_peer = Tracker(port=tracker_port, hostname=self_ip)
 
 # Connection
 def connect(password):
