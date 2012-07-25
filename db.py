@@ -303,23 +303,34 @@ class TrackerDb(PeerDb):
     
     @wait_for_commit_queue
     def get_peers_to_replicate_file(self, file_model, peer_ip, peer_port, max_replication):
-        peer_id = self.get_peer_id(peer_ip, peer_port)
+        with self.connection:
+            peer_id = self.get_peer_id(peer_ip, peer_port)
         
-        from peer import PeerState
+            from peer import PeerState
         
-        if not peer_id:
-            query = ("SELECT Id, Ip, Port FROM Peers " +
-                     "WHERE Id!=? AND State=? AND MaxFileSize>=? " +
-                     "AND MaxFileSysSize>=CurrFileSysSize+?")            
-            self.cur.execute(query, [peer_id, PeerState.ONLINE, file_model.size, 
-                                     file_model.size])
-        else:
-            query = ("SELECT Id, Ip, Port FROM Peers WHERE " +
-                     "State=? AND MaxFileSize>=? " +
-                     "AND MaxFileSysSize>=CurrFileSysSize+?")
+            # not going to worry about replication level for now
+            if peer_id is not None:
+                #query = ("SELECT Id, Ip, Port FROM Peers " +
+                #         "WHERE Id!=? AND State=? AND MaxFileSize>=? " +
+                #         "AND MaxFileSysSize>=CurrFileSysSize+?")            
+                query = ("SELECT Id, Ip, Port FROM Peers " +
+                         "WHERE Id!=? AND State=?")
+                #self.cur.execute(query, [peer_id, PeerState.ONLINE, file_model.size, 
+                #                         file_model.size])
+                self.cur.execute(query, [peer_id, PeerState.ONLINE])
+            else:
+                query = ("SELECT Id, Ip, Port FROM Peers WHERE " +
+                         "State=?")
 
-            self.cur.execute(query, [PeerState.ONLINE, file_model.size, 
-                                     file_model.size])
+                self.cur.execute(query, [PeerState.ONLINE])
+                
+                #query = ("SELECT Id, Ip, Port FROM Peers WHERE " +
+                #         "State=? AND MaxFileSize>=? " +
+                #         "AND MaxFileSysSize>=CurrFileSysSize+?")
+
+                #self.cur.execute(query, [PeerState.ONLINE, file_model.size, 
+                #                         file_model.size])
+
         return self.cur.fetchall()
         
     @wait_for_commit_queue
@@ -399,15 +410,14 @@ class DbThread(threading.Thread):
         logging.debug("Spwaned a Database Thread")
         while self.alive.is_set():
             item = self.db.q.get(block=True)            
-            with self.db.connection:
-                logging.debug("Performing a db statement: " + item[0] + " " + str(item[1]))
-                try:
-                    tmp = item[1][0][0]
-                    self.db.cur.executemany(item[0], item[1])
-                except:
-                    self.db.cur.execute(item[0], item[1])
-                self.db.connection.commit()
-                self.db.q.task_done()
+            logging.debug("Performing a db statement: " + item[0] + " " + str(item[1]))
+            #with self.db.connection:                
+            if isinstance(item[0][0], (list, tuple)):
+                self.db.cur.executemany(item[0], item[1])
+            else:
+                self.db.cur.execute(item[0], item[1])
+            self.db.connection.commit()
+            self.db.q.task_done()
         logging.debug("DbThread finising run")
 
     def join(self, timeout=None):

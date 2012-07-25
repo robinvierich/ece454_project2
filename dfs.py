@@ -16,15 +16,15 @@ import filesystem
 
 local_peer = None
 
-def init_local_peer(tracker_hostname, tracker_port):
+def init_local_peer(tracker_hostname, tracker_port, self_ip):
     global local_peer
     Tracker.HOSTNAME = tracker_hostname
     Tracker.PORT = tracker_port
-    local_peer = LocalPeer()
+    local_peer = LocalPeer(self_ip)
 
-def init_tracker(tracker_port):
+def init_tracker(tracker_port, self_ip):
     global local_peer
-    local_peer = Tracker(port=tracker_port)
+    local_peer = Tracker(port=tracker_port, ip=self_ip)
 
 # Connection
 def connect(password):
@@ -73,6 +73,8 @@ def main():
                       help="Connect to a tracker.")
     parser.add_option("-i", "--ip", action="store", dest="ip", 
                       help="IP address of the tracker to connect to.")
+    parser.add_option("-s", "--self_ip", action="store", dest="self_ip", 
+                      help="External IP address of this peer.")
     parser.add_option("-p", "--port", action="store", dest="port",
                       help="Start a tracker on the current system.")
     parser.add_option('-v', '--verbose', action="store_true", dest="verbose",
@@ -82,23 +84,23 @@ def main():
     
     logging_level = logging.DEBUG
     logging.basicConfig(level=logging.DEBUG, 
-                        format="%(filename)s .%(funcName)s() (%(threadName)s) \n%(message)s")
+                        format="%(filename)s .%(funcName)s() (%(threadName)s)\n\t>> %(message)s")
     # handle the command line arguments
     if options.verbose is None:
         logging.disable(logging.CRITICAL)
 
     if options.tracker:
         # iniitialize the tracker
-        if options.port is None:
-            print "You must specify the tracker's port."
+        if options.port is None or options.self_ip is None:
+            print "You must specify the tracker's port, as well as its external ip."
             sys.exit()
-        init_tracker(int(options.port))
+        init_tracker(int(options.port), options.self_ip)
     else:
         # initialize the local peer
-        if options.port is None or options.ip is None:
-            print "You must specify the IP and port of the tracker to connect to."
+        if options.port is None or options.ip is None or options.self_ip is None:
+            print "You must specify the IP and port of the tracker to connect to as well as the external ip of this peer."
             sys.exit()
-        init_local_peer(options.ip, int(options.port))
+        init_local_peer(options.ip, int(options.port), options.self_ip)
     
     # Very simple cli
     while(True):
@@ -118,7 +120,6 @@ def main():
 
         elif re.match(r'^quit', inp):
             sys.exit()
-
 
 
 # tests

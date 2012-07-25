@@ -35,10 +35,14 @@ class Tracker(LocalPeer):
     HOSTNAME = "localhost"
     PORT = 12345
     REPLICATION_LEVEL = 100
-   
-    def __init__(self, port=PORT):
-        super(Tracker, self).__init__(hostname=Tracker.HOSTNAME, port=port)
+
+    def __init__(self, port=PORT, ip=HOSTNAME):
+        super(Tracker, self).__init__(hostname=ip, port=port)
+        Tracker.PORT = port
         self.db = db.TrackerDb()
+        # add itself to the peers database
+        self.db.add_peer(Tracker.HOSTNAME, Tracker.PORT, PeerState.ONLINE, 
+                         LocalPeer.MAX_FILE_SIZE, LocalPeer.MAX_FILE_SYS_SIZE, 0)
         self.start_accepting_connections()
 
     def handle_CONNECT_REQUEST(self, client_socket, msg):        
@@ -95,7 +99,7 @@ class Tracker(LocalPeer):
     
     @check_connected
     def handle_NEW_FILE_AVAILABLE(self, client_socket, new_file_available_msg):
-        
+        logging.debug("Handling new file available message")
         f = new_file_available_msg.file_model
         peer_ip = client_socket.getpeername()[0]
         peer_port = new_file_available_msg.port
@@ -110,7 +114,14 @@ class Tracker(LocalPeer):
         peers_list = self.db.get_peers_to_replicate_file(f, peer_ip, peer_port, 
                                                          Tracker.REPLICATION_LEVEL)
 
-        # TODO notify all peers about the new file
+        for i in peers_list:
+            # TODO handle the tracker's case
+            if i[1] == self.hostname and i[2] == self.port:
+                #self._download_file(
+                continue
+            p = peer.Peer(i[1], i[2])
+            communication.send_message(new_file_available_msg, p)
+            
     
     @check_connected
     def handle_LIST_REQUEST(self, client_socket, list_request):

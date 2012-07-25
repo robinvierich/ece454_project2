@@ -399,7 +399,7 @@ class LocalPeer(Peer):
         if self.is_tracker_online():
             communication.send_message(new_file_available_msg, self.tracker)
         else:
-            self.backlog.append((new_file_available_msg, self.tracker))
+            self._backlog.append((new_file_available_msg, self.tracker))
 
     
     def handle_FILE_CHANGED(self, client_socket, msg):        
@@ -419,7 +419,7 @@ class LocalPeer(Peer):
             communication.send_message(messages.FileDownloadRequest(file_path), client_socket)
     
     def handle_NEW_FILE_AVAILABLE(self, client_socket, msg):
-        self._download_file(msg.file_path)
+        self._download_file(msg.file_model.path)
     
     def handle_VALIDATE_CHECKSUM_REQUEST(self, client_socket, msg):
         pass
