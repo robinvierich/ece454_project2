@@ -117,8 +117,9 @@ def main():
             write_cli(f)
         elif re.match(r'disco', inp):
             local_peer.disconnect()
-
-        elif re.match(r'^quit', inp):
+        elif re.match(r'conn', inp):
+            local_peer.connect(LocalPeer.PASSWORD)
+        elif re.match(r'quit', inp):
             sys.exit()
 
 

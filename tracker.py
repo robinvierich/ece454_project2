@@ -67,6 +67,8 @@ class Tracker(LocalPeer):
 
         communication.send_message(response, socket=client_socket)
 
+        # TODO If needed, prompt file replication on the newly connected peer
+
         if response.successful:
             # broadcast
             peers_list = self.db.get_peers()
@@ -148,12 +150,11 @@ class Tracker(LocalPeer):
 
         # broadcast
         logging.debug("Broadcasting message ")
-        for i in peers_list:            
-            if i[1] == self.hostname and i[2] == self.port:
+        for p in peers_list:            
+            if p.hostname == self.hostname and p.port == self.port:
                 self._download_file(f.path)
                 continue
-            logging.debug("Broadcasting to peer " + str(i[1]) + " " + str(i[2]))
-            p = peer.Peer(i[1], i[2])            
+            logging.debug("Broadcasting to peer %s %d", p.hostname, p.port)
             communication.send_message(new_file_available_msg, p)
             
     # this either means that a peer now has this particular file
@@ -185,7 +186,9 @@ class Tracker(LocalPeer):
                 if p.hostname == self.hostname and p.port == self.port:
                     LocalPeer.handle_FILE_CHANGED(self, client_socket, file_changed_msg)
                     continue
-                elif p.hostname == source_ip and p.port == source_port:
+                if p.hostname == source_ip and p.port == source_port:
+                    continue
+                if p.state != PeerState.ONLINE:
                     continue
                     
                 logging.debug("Broadcasting to peer %s %s", p.hostname, p.port)
