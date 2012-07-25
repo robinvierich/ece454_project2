@@ -122,8 +122,7 @@ class LocalPeer(Peer):
         response = communication.recv_message(self.tracker)
         logging.info("Response received. Should wait? " + str(response.should_wait))
         while (response.should_wait):
-            # TODO
-            # So it is a tracker's responsibility to notify peer when it is ok to disconnect?
+            # TODO so is it is a tracker's responsibility to notify peer when it is ok to disconnect?
             response = communication.recv_message(self.tracker)
 
         self.stop()
@@ -157,20 +156,21 @@ class LocalPeer(Peer):
             new_checksum = checksum.calc_file_checksum(local_path)
         
             if new_checksum == golden_checksum:
-                logging.info("File downloaded successfully! File name: " + f.path)
+                logging.info("File downloaded successfully! Going to notify tracker. File name: " + f.path)
                 
                 self.db.add_or_update_file(f)
-                
-                new_file_available_msg = messages.NewFileAvailable(f, self.port)
-                communication.send_message(new_file_available_msg, self.tracker)
+                f.data = None
+                response = messages.FileChanged(f, self.port)
+                communication.send_message(response, self.tracker)
+                return
                 
             else:
                 logging.error("File downloaded but checksum doesn't match. " +
                               "Going to try again. File name: %s" % f.path)
                 attempt += 1
 
-        raise Exception("download_file failed - max attempts reached")
-       
+        logging.error("Download_file failed - max attempts reached. File: " + file_path)
+        return False
     
     # File Operations
     def is_tracker_online(self):
@@ -220,25 +220,34 @@ class LocalPeer(Peer):
         
         is_directory = False
         new_checksum = checksum.calc_file_checksum(local_path)
-        size = os.path.getsize(local_path)
+        new_size = os.path.getsize(local_path)
         new_data = filesystem.read_file(local_path) # we have to read here in case there was an offset
 
-        if is_new_file:            
-            file_model = FileModel(file_path, 
-                             is_directory,
-                             new_checksum,
-                             size,
-                             latest_version=1,
-                             data=None)
+        file_model = FileModel(file_path, 
+                               is_directory,
+                               new_checksum,
+                               new_size,
+                               latest_version=1,
+                               data=None)
+        self.db.add_or_update_file(file_model)
+        file_model.data = new_data
             
-            self.db.add_or_update_file(file_model)
-            file_model.data = new_data
-
+        if is_new_file:                                                
             file_msg = messages.NewFileAvailable(file_model, self.port)
-            communication.send_message(file_msg, self.tracker) # let the tracker know about the new file
         else:
-            file_msg = messages.FileChanged(file_path, new_checksum, new_data, start_offset, f.latest_version)
+            # TODO Update the local db
+            print "OLD CHECKSUM: " + f.checksum
+            print "NEW CHECKSUM: " + new_checksum
+            if new_checksum == f.checksum:
+                print "MATCH"
+            else:
+                print "NOT MACTH"
+            f.checksum = new_checksum
+            f.size = new_size
+            file_msg = messages.FileChanged(file_model, self.port, start_offset)
         
+        communication.send_message(file_msg, self.tracker) # let the tracker know about the file
+
         # I believe that the following should be done by the tracker
         # Only do this if the tracker is offline
 
@@ -472,29 +481,37 @@ class LocalPeer(Peer):
 
     
     def handle_FILE_CHANGED(self, client_socket, file_changed_msg):        
-        file_path = file_changed_msg.file_path
-        new_data = file_changed_msg.new_data
-        remote_checksum = file_changed_msg.new_checksum
+        remote_file = file_changed_msg.file_model
         start_offset = file_changed_msg.start_offset
-        latest_version = file_changed_msg.latest_version
-        
-        local_path = filesystem.get_local_path(self, file_path, latest_version)
-        
+
+        peer_ip = client_socket.getpeername()[0]
+        peer_port = file_changed_msg.port
+
+        local_path = filesystem.get_local_path(self, remote_file.path, remote_file.latest_version)
+
         if not os.path.exists(local_path):
+            logging.warning("Recieved a file change message, but there is no such file locally")
             return
         
-        filesystem.write_file(local_path, new_data, start_offset)
+        filesystem.write_file(local_path, remote_file.data, start_offset)
         
-        new_data = filesystem.read_file(file_path)
-        new_checksum = checksum.calc_checksum(new_data)
+        new_checksum = checksum.calc_file_checksum(local_path)
         
-        if (new_checksum != remote_checksum):
-            communication.send_message(messages.FileDownloadRequest(file_path), socket=client_socket)
+        if new_checksum == remote_file.checksum:
+            logging.debug("File was updated. Notifying the tracker.")
+            # notify tracker that peer now has updated file
+            file_changed_msg.port = self.port
+            communication.send_message(file_changed_msg, self.tracker)
+            # TODO update local db
+        else:
+            logging.warning("Updated local file as per file changed message, but checksums don't " +
+                            "match. Re-reqesting the file")
+            communication.send_message(messages.FileDownloadRequest(remote_file.path), socket=client_socket)
     
     def handle_NEW_FILE_AVAILABLE(self, client_socket, msg):
-        self.db.add_or_update_file(msg.file_model)
+        #self.db.add_or_update_file(msg.file_model)
         self._download_file(msg.file_model.path)
-    
+
     def handle_VALIDATE_CHECKSUM_REQUEST(self, client_socket, msg):
         pass
     

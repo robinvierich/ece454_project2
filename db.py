@@ -16,15 +16,16 @@ def wait_for_commit_queue(function):
 
     def wrapper(*args, **kwargs):
         db = args[0]
-        logging.debug(function.func_name + " - Waiting until the DB Commit queue is empty")
+        #logging.debug(function.func_name + " - Waiting until the DB Commit queue is empty")
         db.q.join()
-        logging.debug("Commit queue is now empty. Executing query")
+        #logging.debug("Commit queue is now empty. Executing query")
 
         return_value = function(*args, **kwargs)
         return return_value
         
     return wrapper
 
+# TODO Add Foreign Keys!!!
 class PeerDb(object):
     def __init__(self, db_name):
         logging.debug("Initializing Tables Common to LocalPeer and Tracker")        
@@ -278,7 +279,7 @@ class TrackerDb(PeerDb):
                  "(SELECT FileId FROM PeerFile WHERE PeerId=?) AND PeerId!=?) AND PeerId=?")
         self.cur.execute(query, [res, res, res])
         res = self.cur.fetchone()
-        return False if res is None else True
+        return False if res[0] == 0 else True
     
     @wait_for_commit_queue
     def add_file_peer_entry(self, file_model, peer_ip, peer_port):
@@ -342,6 +343,20 @@ class TrackerDb(PeerDb):
         self.cur.execute(query, [file_id, sqlite3.Binary(checksum)])
         res = self.cur.fetchone()
         return False if res is None else True
+
+    @wait_for_commit_queue
+    def peer_has_file(self, file_path, peer_ip, peer_port):
+        file_id = self.get_file_id(file_path)
+        peer_id = self.get_peer_id(peer_ip, peer_port)
+        # TODO there is probably a better way of handling this
+        if file_id is None:
+            raise RuntimeError("Cannot find file " + file_path)
+        if peer_id is None:
+            raise RuntimeError("Cannot find peer " + peer_ip + " " + peer_port)
+        query = "SELECT count(*) FROM PeerFile WHERE FileId=? AND PeerId=?"
+        self.cur.execute(query, [file_id, peer_id])
+        res = self.cur.fetchone()
+        return True if res[0] == 1 else False
                 
 class LocalPeerDb(PeerDb):
     DB_FILE = "peer_db.db"

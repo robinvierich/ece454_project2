@@ -42,9 +42,10 @@ def recv_bytes(socket, byteCount):
     msg = ''
     while len(msg) < byteCount:
         data = socket.recv(byteCount - len(msg))
-        if data == '':
+        if data == '' and len(msg) < byteCount:
             logging.error("socket connection broken")
-            raise RuntimeError("socket connection broken")
+            raise RuntimeError("socket connection broken. Received %d out of %d bytes",
+                               len(msg), byteCount)
         msg = msg + data
     return msg
 

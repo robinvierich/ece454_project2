@@ -112,13 +112,11 @@ class FileData(Message):
         self.file_model = file_model
 
 class FileChanged(Message):
-    def __init__(self, file_path, new_checksum, new_data, start_offset, latest_version):
+    def __init__(self, file_model, port, start_offset=0):
         super(FileChanged, self).__init__(MessageType.FILE_CHANGED)
-        self.file_path = file_path
-        self.new_checksum = new_checksum
-        self.new_data = new_data
+        self.port = port
+        self.file_model = file_model
         self.start_offset = start_offset
-        self.latest_version = latest_version
 
 class FileArchived(Message):
     def __init__(self, file_path, new_version):

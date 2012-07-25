@@ -40,6 +40,7 @@ class Tracker(LocalPeer):
         Tracker.PORT = port
         
         super(Tracker, self).__init__(hostname, port)
+        self.tracker = peer.Peer(self.hostname, self.port)
         self.db = db.TrackerDb()
         # add itself to the peers database
         self.db.add_peer(self.hostname, self.port, PeerState.ONLINE, 
@@ -104,6 +105,9 @@ class Tracker(LocalPeer):
         f = new_file_available_msg.file_model
         peer_ip = client_socket.getpeername()[0]
         peer_port = new_file_available_msg.port
+
+        if peer_ip == self.hostname and peer_port == self.port:
+            return
                 
         self.db.add_or_update_file(f)
         self.db.add_file_peer_entry(f, peer_ip, peer_port)
@@ -120,13 +124,42 @@ class Tracker(LocalPeer):
         for i in peers_list:            
             # TODO handle the tracker's case
             if i[1] == self.hostname and i[2] == self.port:
-                logging.debug("Skipping self")
-                #self._download_file(                
+                self._download_file(f.path)
                 continue
             logging.debug("Broadcasting to peer " + str(i[1]) + " " + str(i[2]))
             p = peer.Peer(i[1], i[2])            
             communication.send_message(new_file_available_msg, p)
             
+    # this either means that a peer now has this particular file
+    # or the file has actually been changed
+    def handle_FILE_CHANGED(self, client_socket, file_changed_msg):
+        remote_file = file_changed_msg.file_model
+
+        peer_ip = client_socket.getpeername()[0]
+        peer_port = file_changed_msg.port
+
+        if peer_ip == self.hostname and peer_port == self.port:
+            return
+
+        db_file = self.db.get_file(remote_file.path)
+        # if checksums match, that means the file wasn't actually updated
+        # but the peer just downloaded it.
+        if (db_file.checksum == remote_file.checksum and
+            db_file.latest_version == remote_file.latest_version):
+            
+            logging.debug("A peer now has file " + remote_file.path)
+            self.db.add_file_peer_entry(remote_file, peer_ip, peer_port)
+        else:
+            # this is a file change. notify all peers that have the file
+            logging.debug("Peer's file (%s) was change. Going to notify all peers", 
+                          remote_file.path)
+            
+
+        # if the tracker has the file himself, update it locally as well
+        if self.db.peer_has_file(remote_file.path, self.hostname, self.port):
+            LocalPeer.handle_FILE_CHANGED(self, client_socket, file_changed_msg)
+            
+
     
     @check_connected
     def handle_LIST_REQUEST(self, client_socket, list_request):
