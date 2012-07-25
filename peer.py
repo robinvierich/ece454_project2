@@ -21,7 +21,7 @@ class PeerState(object):
     
 
 class Peer(object):
-    HOSTNAME = "localhost"
+    HOSTNAME = "127.0.0.1"
     PORT = 11111
     NAME = "Peer"
     

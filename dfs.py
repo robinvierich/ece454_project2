@@ -16,11 +16,15 @@ import filesystem
 
 local_peer = None
 
-def init_local_peer(tracker_hostname, tracker_port, self_ip):
+def init_local_peer(tracker_hostname, tracker_port, self_ip, root_path=None, db_name=None):
     global local_peer
     Tracker.HOSTNAME = tracker_hostname
     Tracker.PORT = tracker_port
-    local_peer = LocalPeer(hostname=self_ip)
+    
+    if root_path:
+        local_peer = LocalPeer(hostname=self_ip, root_path=root_path, db_name=db_name)
+    else:
+        local_peer = LocalPeer(hostname=self_ip, db_name=db_name)
 
 def init_tracker(tracker_port, self_ip):
     global local_peer

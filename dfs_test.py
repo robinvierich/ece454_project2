@@ -61,17 +61,18 @@ def test_archive(testfile_path = "dfs_test.txt"):
 def run_tests():
     global peer2
     
-    logging.basicConfig(level=logging.INFO, 
-                        format="%(filename)s.%(funcName)s(): %(message)s")
+    logging.basicConfig(level=logging.DEBUG, 
+                        format="%(threadName)s %(filename)s.%(funcName)s(): %(message)s")
     
     print "DFS Test"
     print "Starting Tracker"
+    
     tracker = Tracker()
     
-    dfs.init_local_peer(Tracker.HOSTNAME, Tracker.PORT, "127.0.0.1")
+    dfs.init_local_peer(Tracker.HOSTNAME, Tracker.PORT, "127.0.0.1", root_path="./peer1/dfs/", db_name="peer1test.db")
     dfs.local_peer.root_path="./peer1/"
     
-    peer2 = LocalPeer(hostname="localhost", port=LocalPeer.PORT + 1,  root_path="./peer2/", db_name="peer2_db.db")
+    peer2 = LocalPeer(hostname="localhost", port=LocalPeer.PORT + 1,  root_path="./peer2/dfs/", db_name="peer2test.db")
     
     test_write()
     test_ls()

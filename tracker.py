@@ -34,7 +34,7 @@ def check_connected(function):
     return wrapper
 
 class Tracker(LocalPeer):
-    HOSTNAME = "localhost"
+    HOSTNAME = "127.0.0.1"
     PORT = 12345
     REPLICATION_LEVEL = 100
 
@@ -183,7 +183,7 @@ class Tracker(LocalPeer):
             print str(peers_list)
             for p in peers_list:                            
                 if p.hostname == self.hostname and p.port == self.port:
-                    LocalPeer.handle_FILE_CHANGED(self, client_socket, file_changed_msg)
+                    super(Tracker, self).handle_FILE_CHANGED(self, client_socket, file_changed_msg)
                     continue
                 elif p.hostname == source_ip and p.port == source_port:
                     continue
