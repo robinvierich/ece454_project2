@@ -34,7 +34,7 @@ def check_connected(function):
     return wrapper
 
 class Tracker(LocalPeer):
-    HOSTNAME = "localhost"
+    HOSTNAME = "127.0.0.1"
     PORT = 12345
     REPLICATION_LEVEL = 100
 
@@ -184,7 +184,7 @@ class Tracker(LocalPeer):
             print str(peers_list)
             for p in peers_list:                            
                 if p.hostname == self.hostname and p.port == self.port:
-                    LocalPeer.handle_FILE_CHANGED(self, client_socket, file_changed_msg)
+                    super(Tracker, self).handle_FILE_CHANGED(self, client_socket, file_changed_msg)
                     continue
                 if p.hostname == source_ip and p.port == source_port:
                     continue
@@ -211,8 +211,17 @@ class Tracker(LocalPeer):
         communication.send_message(response, socket=client_socket)
     
     @check_connected
-    def handle_DELETE_REQUEST(self, client_socket, msg):
-        pass
+    def handle_DELETE_REQUEST(self, client_socket, delete_request):
+        file_path = delete_request.file_path
+        
+        delete_response = messages.DeleteResponse(file_path, False)
+        
+        f = self.db.get_file(file_path)
+        if f:
+            delete_response.can_delete = True
+            
+        communication.send_message(delete_response, socket=client_socket)
+                
     
     @check_connected
     def handle_DELETE(self, client_socket, msg):

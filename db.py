@@ -8,6 +8,7 @@ import Queue
 import threading
 import os.path
 from messages import FileModel
+from msilib.schema import SelfReg
 
 def wait_for_commit_queue(function):
     """A decorator that waits for the commit queue to be empty, 
@@ -28,8 +29,16 @@ def wait_for_commit_queue(function):
 # TODO Add Foreign Keys!!!
 class PeerDb(object):
     def __init__(self, db_name):
-        logging.debug("Initializing Tables Common to LocalPeer and Tracker")        
+        logging.debug("Initializing Tables Common to LocalPeer and Tracker")
+        self.dblock = threading.Lock()
+                
         self.db_name = db_name
+        
+        db_dirpath = os.path.dirname(db_name)
+        
+        if db_dirpath and not os.path.exists(db_dirpath):
+            os.makedirs(db_dirpath)
+        
         self.q = Queue.Queue()
         self.connection = None
         self.cur = None
@@ -37,36 +46,50 @@ class PeerDb(object):
         self.db_thread.start()
         self.create_common_tables()
 
+    @wait_for_commit_queue
+    def execute_now(self, query, params=[]):
+        with self.dblock:
+            self.cur.execute(query, params)
+    
+    @wait_for_commit_queue
+    def excute_now_and_fetch_one(self, query, params=[]):
+        with self.dblock:
+            self.cur.execute(query, params)
+            return self.cur.fetchone()
+    
+    @wait_for_commit_queue
+    def excute_now_and_fetch_all(self, query, params=[]):
+        with self.dblock:
+            self.cur.execute(query, params)
+            return self.cur.fetchall()
+
     def create_common_tables(self):
         with self.connection:
 
-            self.cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' " +
+            res = self.excute_now_and_fetch_one("SELECT count(*) FROM sqlite_master WHERE type='table' " +
                              "AND name='Files'")
-            res = self.cur.fetchone()
             if res[0] == 0:
                 logging.info("Creating the Files table")
-                self.cur.execute("CREATE TABLE Files(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                self.execute_now("CREATE TABLE Files(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                             "FileName TEXT, IsDirectory INT, " +
                             "GoldenChecksum BLOB, Size INT, LastVersionNumber INT, " +
                             "ParentId INT)", [])
                 
         with self.connection:
-            self.cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' " +
+            res = self.excute_now_and_fetch_one("SELECT count(*) FROM sqlite_master WHERE type='table' " +
                              "AND name='Version'")
-            res = self.cur.fetchone()
             if res[0] == 0:
                 logging.info("Creating the Version table")
-                self.cur.execute("CREATE TABLE Version(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                self.execute_now("CREATE TABLE Version(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                             "FileId INT, VersionNumber INT, " +
                             "VersionName TEXT, FileSize INT, Checksum BLOB)", [])
                 
         with self.connection:
-            self.cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' " +
+            res = self.excute_now_and_fetch_one("SELECT count(*) FROM sqlite_master WHERE type='table' " +
                              "AND name='LocalPeerFiles'")
-            res = self.cur.fetchone()
             if res[0] == 0:
                 logging.info("Creating the LocalPeerFiles table")
-                self.cur.execute("CREATE TABLE LocalPeerFiles(FileId INT)", [])
+                self.execute_now("CREATE TABLE LocalPeerFiles(FileId INT)", [])
 
     @wait_for_commit_queue
     def list_files(self, path):
@@ -76,8 +99,8 @@ class PeerDb(object):
         query = ("SELECT FileName, IsDirectory, GoldenChecksum, Size, LastVersionNumber "+
                  "FROM Files")
         #query = "select * from Files"
-        self.cur.execute(query)
-        res = self.cur.fetchall()
+        
+        res = self.excute_now_and_fetch_all(query)
         #file_model_list = [FileModel(*f) for f in res if f]
         file_model_list = []
         for f in res:
@@ -91,8 +114,7 @@ class PeerDb(object):
     def get_file(self, path):
         query = ("SELECT FileName, IsDirectory, GoldenChecksum, Size, LastVersionNumber "+ 
                  "FROM Files WHERE FileName=?")
-        self.cur.execute(query, (path,))
-        res = self.cur.fetchone()
+        res = self.excute_now_and_fetch_one(query, (path,))
         if res:
             # can't pickle buffer objects which GoldenChecksums are. Need to conv to str
             return FileModel(res[0], res[1], str(res[2]), res[3], res[4])
@@ -117,7 +139,7 @@ class PeerDb(object):
 
         if file_id is not None:
             query = "SELECT Count(*) FROM LocalPeerFiles WHERE FileId=?"
-            self.cur.execute(query, [file_id])
+            self.excute_now_and_fetch_one(query, [file_id])
             res = self.cur.fetchone()
             if res[0] > 0:
                 return True
@@ -176,8 +198,8 @@ class PeerDb(object):
     def get_peer_id(self, peer_ip, peer_port):
         # what's the peer we're dealing with?
         query = "SELECT Id FROM Peers WHERE Ip=? AND Port=?"
-        self.cur.execute(query, [peer_ip, peer_port])
-        res = self.cur.fetchone()
+        res = self.excute_now_and_fetch_one(query, [peer_ip, peer_port])
+        
         if res is not None:
             return res[0]
         return None
@@ -185,8 +207,8 @@ class PeerDb(object):
     @wait_for_commit_queue
     def get_file_id(self,file_name ):
         query = "SELECT Id FROM Files WHERE fileName=?"
-        self.cur.execute(query, [file_name])
-        res = self.cur.fetchone()
+        res = self.excute_now_and_fetch_one(query, [file_name])
+        
         if res is not None:
             return res[0]
         return None
@@ -212,28 +234,26 @@ class TrackerDb(PeerDb):
     
     def create_tables(self):
         with self.connection:
-            self.cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' " +
+            res = self.excute_now_and_fetch_one("SELECT count(*) FROM sqlite_master WHERE type='table' " +
                              "AND name='Peers'")
-            res = self.cur.fetchone()
             if res[0] == 0:
                 logging.debug("Creating the Peers table")
-                self.cur.execute("CREATE TABLE Peers(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                self.execute_now("CREATE TABLE Peers(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                             "Name TEXT, Ip TEXT, Port INT, " +
                             "State INT, MaxFileSize INT, MaxFileSysSize INT, " +
                             "CurrFileSysSize INT)", [])
 
-            self.cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' " +
+            res = self.excute_now_and_fetch_one("SELECT count(*) FROM sqlite_master WHERE type='table' " +
                              "AND name='PeerFile'")
-            res = self.cur.fetchone()
+            
             if res[0] == 0:
                 logging.debug("Creating the PeerFile table")
-                self.cur.execute("CREATE TABLE PeerFile(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                self.execute_now("CREATE TABLE PeerFile(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                             "FileId INT, PeerId INT, " +
                             "Checksum BLOB, PendingUpdate INT)", [])
 
-            self.cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' " +
+            res = self.excute_now_and_fetch_one("SELECT count(*) FROM sqlite_master WHERE type='table' " +
                              "AND name='PeerExcludedFiles'")
-            res = self.cur.fetchone()
             if res[0] == 0:
                 logging.debug("Creating the PeerExcludedFiles table")
                 self.q.put(("CREATE TABLE PeerExcludedFiles(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
@@ -248,7 +268,7 @@ class TrackerDb(PeerDb):
             query = ("UPDATE Peers SET state=?, maxfilesize=?, maxfilesyssize=?, currfilesyssize=?," +
                      "name=? WHERE Id=?")
             if block:
-                self.cur.execute(query, [state, maxFileSize, maxFileSysSize, currFileSysSize, name, res])
+                self.execute_now(query, [state, maxFileSize, maxFileSysSize, currFileSysSize, name, res])
             else:
                 self.q.put((query, [state, maxFileSize, maxFileSysSize, currFileSysSize, name, res]))
         else:
@@ -257,7 +277,7 @@ class TrackerDb(PeerDb):
                      "VALUES (?, ?, ?, ?, ?, ?, ?)")
             
             if block:
-                self.cur.execute(query, [name, ip, port, state, maxFileSize,
+                self.execute_now(query, [name, ip, port, state, maxFileSize,
                                          maxFileSysSize, currFileSysSize])
             else:
                 self.q.put((query, [name, ip, port, state, maxFileSize,
@@ -267,8 +287,7 @@ class TrackerDb(PeerDb):
     def get_peer_state(self, ip, port):
         query = ("SELECT State FROM Peers " +
                  "WHERE Ip=? AND Port=?")
-        self.cur.execute(query, [ip, port])
-        res = self.cur.fetchone()
+        res = self.excute_now_and_fetch_one(query, [ip, port])
         
         return res[0]
         
@@ -282,17 +301,18 @@ class TrackerDb(PeerDb):
             res = self.get_file_id(file_path)
             if res is None:
                 raise RuntimeError("Cannot find file with name " + file_path)
+            
             query = "SELECT PeerId FROM PeerFile WHERE FileId=?"
-            self.cur.execute(query, [res])
-            res = self.cur.fetchall()
+            res = self.excute_now_and_fetch_all(query, [res])
+            
             if not res:
                 raise RuntimeError("Cannot find peer that has file " + file_path)
             # i am not proud of this line of code
             query = ("SELECT Id, Name, Ip, Port, State FROM Peers WHERE Id IN (" + 
                      str([i[0] for i in res])[1:-1] + ")")
             
-        self.cur.execute(query)
-        res = self.cur.fetchall()
+        res = self.excute_now_and_fetch_all(query)
+
         print res
         if res is None:
             raise RuntimeError("Cannot get a peers list " + file_path)
@@ -312,21 +332,20 @@ class TrackerDb(PeerDb):
         query = ("SELECT count(*) FROM PeerFile WHERE FileId NOT IN " +
                  "(SELECT FileId FROM PeerFile WHERE FileId IN " +
                  "(SELECT FileId FROM PeerFile WHERE PeerId=?) AND PeerId!=?) AND PeerId=?")
-        self.cur.execute(query, [res, res, res])
-        res = self.cur.fetchone()
+        res = self.excute_now_and_fetch_one(query, [res, res, res])
         return False if res[0] == 0 else True
     
     @wait_for_commit_queue
     def add_file_peer_entry(self, file_model, peer_ip, peer_port):
         peer_id = self.get_peer_id(peer_ip, peer_port)
         if peer_id is None:
-            raise RuntimeError("Cannot find peer " + peer_ip + " " + peer_port)
+            raise RuntimeError("Cannot find peer %s:%i" % (peer_ip, peer_port))
         file_id = self.get_file_id(file_model.path)
         if file_id is None:
             raise RuntimeError("Cannot find file " + file_model.path)
         query = "SELECT Id FROM PeerFile WHERE FileId=? AND PeerId=?"
-        self.cur.execute(query, [file_id, peer_id])
-        res = self.cur.fetchone()
+        res = self.excute_now_and_fetch_one(query, [file_id, peer_id])
+        
         if res is None:
             query = ("INSERT INTO PeerFile (FileId, PeerId, Checksum, PendingUpdate) " +
                      "VALUES (?, ?, ?, ?)")
@@ -353,12 +372,11 @@ class TrackerDb(PeerDb):
                      "WHERE Id!=? AND State=?")
             #self.cur.execute(query, [peer_id, PeerState.ONLINE, file_model.size, 
             #                         file_model.size])
-            self.cur.execute(query, [peer_id, PeerState.ONLINE])
+            res self.excute_now_and_fetch_all(query, [peer_id, PeerState.ONLINE])
         else:
             query = ("SELECT Id, Name, Ip, Port, State FROM Peers WHERE " +
                      "State=?")
-
-            self.cur.execute(query, [PeerState.ONLINE])
+            res self.excute_now_and_fetch_all(query, [PeerState.ONLINE])
                 
             #query = ("SELECT Id, Ip, Port FROM Peers WHERE " +
             #         "State=? AND MaxFileSize>=? " +
@@ -379,8 +397,8 @@ class TrackerDb(PeerDb):
         if file_id is None:
             raise RuntimeError("Cannot find file " + file_path)
         query = "SELECT Checksum FROM Files WHERE FileId=? AND Checksum=?"
-        self.cur.execute(query, [file_id, sqlite3.Binary(checksum)])
-        res = self.cur.fetchone()
+        res = self.excute_now_and_fetch_one(query, [file_id, sqlite3.Binary(checksum)])
+        
         return False if res is None else True
 
     @wait_for_commit_queue
@@ -393,8 +411,8 @@ class TrackerDb(PeerDb):
         if peer_id is None:
             raise RuntimeError("Cannot find peer " + peer_ip + " " + peer_port)
         query = "SELECT count(*) FROM PeerFile WHERE FileId=? AND PeerId=?"
-        self.cur.execute(query, [file_id, peer_id])
-        res = self.cur.fetchone()
+        res = self.excute_now_and_fetch_one(query, [file_id, peer_id])
+        
         return True if res[0] == 1 else False
                 
 class LocalPeerDb(PeerDb):
@@ -403,26 +421,26 @@ class LocalPeerDb(PeerDb):
         logging.debug("Initializing Local Peer Database")
         
         if not db_name:
-            db_name = LocalPeerDb.DB_FILE         
+            db_name = LocalPeerDb.DB_FILE
         PeerDb.__init__(self, db_name)
         self.create_tables()
 
     def create_tables(self):
         with self.connection:
-            self.cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' " +
+            res = self.excute_now_and_fetch_one("SELECT count(*) FROM sqlite_master WHERE type='table' " +
                              "AND name='Peers'")
-            res = self.cur.fetchone()
+            
             if res[0] == 0:
                 logging.debug("Creating the Peers table")
-                self.cur.execute("CREATE TABLE Peers(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                self.execute_now("CREATE TABLE Peers(Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                                  "Name TEXT, Ip TEXT, Port INT, State INT)", [])
 
-            self.cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' " +
+            res = self.excute_now_and_fetch_one("SELECT count(*) FROM sqlite_master WHERE type='table' " +
                              "AND name='LocalPeerExcludedFiles'")
-            res = self.cur.fetchone()
+            
             if res[0] == 0:
                 logging.debug("Creating the LocalPeerExcludedFiles table")
-                self.cur.execute("CREATE TABLE LocalPeerExcludedFiles(Id INTEGER PRIMARY KEY " +
+                self.execute_now("CREATE TABLE LocalPeerExcludedFiles(Id INTEGER PRIMARY KEY " +
                                  "AUTOINCREMENT, FileId INT, FileNamePattern TEXT)", [])
 
     # delete everything in the peers table and insert
@@ -440,8 +458,8 @@ class LocalPeerDb(PeerDb):
         # just give them the list of all peers
         query = "SELECT Id, Name, Ip, Port, State FROM Peers"
             
-        self.cur.execute(query)
-        res = self.cur.fetchall()
+        res = self.excute_now_and_fetch_all(query)
+        
         if not res:
             raise RuntimeError("Cannot get a peers list (LocalPeerDb)")
         return res
@@ -463,7 +481,7 @@ class LocalPeerDb(PeerDb):
 
 
 
-dblock = threading.Lock()
+
 
 class DbThread(threading.Thread):
     def __init__(self, db):            
@@ -471,7 +489,15 @@ class DbThread(threading.Thread):
         self.db = db
         self.name = "DBThread"
         logging.debug("Connecting to the database")
-        db.connection = sqlite3.connect(db.db_name, check_same_thread=False)
+        
+        
+        
+        try:
+            db.connection = sqlite3.connect(db.db_name, check_same_thread=False)
+        except sqlite3.OperationalError, e:
+            logging.fatal("Error connecting to DB at %s: %s" % (db.db_name, e))
+            import sys
+            sys.exit()
         
         db.cur = db.connection.cursor()    
         self.alive = threading.Event()
@@ -489,9 +515,11 @@ class DbThread(threading.Thread):
             success = False
             while not success: 
                 if isinstance(item[0][0], (list, tuple)):
-                    self.db.cur.executemany(item[0], item[1])
+                    with self.db.dblock:
+                        self.db.cur.executemany(item[0], item[1])
                 else:
-                    self.db.cur.execute(item[0], item[1])
+                    with self.db.dblock:
+                        self.db.cur.execute(item[0], item[1])
                 self.db.connection.commit()
                 self.db.q.task_done()
                 success = True
